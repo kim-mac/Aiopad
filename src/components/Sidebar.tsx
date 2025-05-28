@@ -40,7 +40,6 @@ interface SidebarProps {
   selectedNote: string | null;
   onNoteSelect: (noteId: string | null) => void;
   isOpen: boolean;
-  onToggle: () => void;
 }
 
 type SortOption = 'modified-desc' | 'modified-asc' | 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc';
@@ -51,7 +50,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   selectedNote,
   onNoteSelect,
   isOpen,
-  onToggle,
 }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedNotes, setSelectedNotes] = React.useState<string[]>([]);
@@ -148,63 +146,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             : '4px 0 12px rgba(0,0,0,0.1)',
       }}
     >
-      <Box
-        sx={{
-          position: 'absolute',
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          zIndex: 1,
-        }}
-      >
-        <IconButton
-          onClick={onToggle}
-          size="small"
-          sx={{
-            position: 'absolute',
-            right: -16,
-            backgroundColor: 'background.paper',
-            height: 72,
-            width: 16,
-            minWidth: 16,
-            padding: 0,
-            borderRadius: '0 4px 4px 0',
-            color: 'text.secondary',
-            transition: 'all 0.2s ease',
-            boxShadow: (theme) => 
-              theme.palette.mode === 'dark'
-                ? '4px 0 12px rgba(0,0,0,0.3)'
-                : '4px 0 12px rgba(0,0,0,0.1)',
-            border: 1,
-            borderLeft: 0,
-            borderColor: 'divider',
-            '&:hover': {
-              backgroundColor: 'action.hover',
-              color: 'text.primary',
-            },
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: -1,
-              bottom: -1,
-              left: -1,
-              width: 1,
-              backgroundColor: 'background.paper',
-            },
-            '& .MuiSvgIcon-root': {
-              fontSize: '1rem',
-              transition: 'transform 0.2s ease',
-              transform: isOpen ? 'rotate(0)' : 'rotate(180deg)',
-            },
-          }}
-        >
-          <ChevronLeft />
-        </IconButton>
-      </Box>
       <Box
         sx={{
           p: 2,

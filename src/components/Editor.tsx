@@ -16,6 +16,8 @@ interface EditorProps {
   fontFamily: string;
   fontSize: number;
   onFontChange: (fontFamily: string, fontSize: number) => void;
+  isSidebarOpen: boolean;
+  onSidebarToggle: () => void;
 }
 
 interface TypingMetrics {
@@ -35,6 +37,8 @@ const Editor: React.FC<EditorProps> = ({
   fontFamily,
   fontSize,
   onFontChange,
+  isSidebarOpen,
+  onSidebarToggle,
 }) => {
   const theme = useTheme();
   const [typingMetrics, setTypingMetrics] = React.useState<TypingMetrics>({
@@ -226,104 +230,108 @@ const Editor: React.FC<EditorProps> = ({
   }
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2 }}>
-      <TextField
-        value={note.title}
-        onChange={(e) => onNoteChange({ title: e.target.value })}
-        variant="standard"
-        placeholder="Note title"
-        sx={{
-          mb: 2,
-          '& .MuiInput-root': {
-            fontSize: '1.5rem',
-            fontWeight: 500,
-            fontFamily: fontFamily,
-          },
-          '& .MuiInput-root:before': {
-            borderBottom: 'none',
-          },
-          '& .MuiInput-root:hover:not(.Mui-disabled):before': {
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-          },
-        }}
-      />
-      <Box
-        sx={{
-          mb: 2,
-          borderRadius: 2,
-          backgroundColor: 'background.paper',
-          boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-        }}
-      >
-        <Toolbar
-          content={note.content}
-          setContent={(content) => onNoteChange({ content })}
-          onFontChange={onFontChange}
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2 }}>
+        <TextField
+          value={note.title}
+          onChange={(e) => onNoteChange({ title: e.target.value })}
+          variant="standard"
+          placeholder="Note title"
+          sx={{
+            mb: 2,
+            '& .MuiInput-root': {
+              fontSize: '1.5rem',
+              fontWeight: 500,
+              fontFamily: fontFamily,
+            },
+            '& .MuiInput-root:before': {
+              borderBottom: 'none',
+            },
+            '& .MuiInput-root:hover:not(.Mui-disabled):before': {
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+            },
+          }}
         />
-      </Box>
-      <Box
-        component="textarea"
-        value={note.content}
-        onChange={(e) => {
-          const newContent = e.target.value;
-          onNoteChange({ content: newContent });
-          updateTypingSpeed(newContent, note.content);
-        }}
-        sx={{
-          flex: 1,
-          resize: 'none',
-          border: 'none',
-          outline: 'none',
-          p: 2,
-          fontSize: fontSize,
-          lineHeight: 1.6,
-          letterSpacing: '-0.01em',
-          fontFamily: fontFamily,
-          backgroundColor: 'background.paper',
-          color: 'text.primary',
-          borderRadius: 2,
-          boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-          transition: 'all 0.2s ease-in-out',
-          '&:focus': {
-            outline: 'none',
-            boxShadow: theme.palette.mode === 'dark' 
-              ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
-              : '0 4px 16px rgba(0,0,0,0.12)',
-          },
-        }}
-      />
-      <Box
-        sx={{
-          mt: 2,
-          p: 1.5,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 2,
-          borderTop: 1,
-          borderColor: 'divider',
-          borderRadius: 1,
-          fontFamily: fontFamily,
-        }}
-      >
-        <Box sx={{ display: 'flex', gap: 3 }}>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ fontFamily: 'inherit' }}
-          >
-            Words: {getWordCount(note.content)}
-          </Typography>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ fontFamily: 'inherit' }}
-          >
-            Characters: {getCharacterCount(note.content)}
-          </Typography>
+        <Box
+          sx={{
+            mb: 2,
+            borderRadius: 1,
+            backgroundColor: 'background.paper',
+            boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 1px 4px rgba(0,0,0,0.05)',
+          }}
+        >
+          <Toolbar
+            content={note.content}
+            setContent={(content) => onNoteChange({ content })}
+            onFontChange={onFontChange}
+            isSidebarOpen={isSidebarOpen}
+            onSidebarToggle={onSidebarToggle}
+          />
         </Box>
-        <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />
+        <Box
+          component="textarea"
+          value={note.content}
+          onChange={(e) => {
+            const newContent = e.target.value;
+            onNoteChange({ content: newContent });
+            updateTypingSpeed(newContent, note.content);
+          }}
+          sx={{
+            flex: 1,
+            resize: 'none',
+            border: 'none',
+            outline: 'none',
+            p: 2,
+            fontSize: fontSize,
+            lineHeight: 1.6,
+            letterSpacing: '-0.01em',
+            fontFamily: fontFamily,
+            backgroundColor: 'background.paper',
+            color: 'text.primary',
+            borderRadius: 2,
+            boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
+            transition: 'all 0.2s ease-in-out',
+            '&:focus': {
+              outline: 'none',
+              boxShadow: theme.palette.mode === 'dark' 
+                ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
+                : '0 4px 16px rgba(0,0,0,0.12)',
+            },
+          }}
+        />
+        <Box
+          sx={{
+            mt: 2,
+            p: 1.5,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 2,
+            borderTop: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+            fontFamily: fontFamily,
+          }}
+        >
+          <Box sx={{ display: 'flex', gap: 3 }}>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ fontFamily: 'inherit' }}
+            >
+              Words: {getWordCount(note.content)}
+            </Typography>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ fontFamily: 'inherit' }}
+            >
+              Characters: {getCharacterCount(note.content)}
+            </Typography>
+          </Box>
+          <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />
+        </Box>
       </Box>
     </Box>
   );

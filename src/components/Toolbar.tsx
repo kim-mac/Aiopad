@@ -33,13 +33,17 @@ import {
   ChevronLeft,
   Calculate,
   Backspace,
+  Keyboard as KeyboardIcon,
 } from '@mui/icons-material';
 import { ThemeVariant, ColorMode } from '../themes';
+import Keyboard from './Keyboard';
 
 interface ToolbarProps {
   content: string;
   setContent: (content: string) => void;
   onFontChange: (fontFamily: string, fontSize: number) => void;
+  isSidebarOpen: boolean;
+  onSidebarToggle: () => void;
 }
 
 const FONT_FAMILIES = [
@@ -257,8 +261,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
   content,
   setContent,
   onFontChange,
+  isSidebarOpen,
+  onSidebarToggle,
 }) => {
   const [calculatorOpen, setCalculatorOpen] = React.useState(false);
+  const [keyboardOpen, setKeyboardOpen] = React.useState(false);
   const [fontFamily, setFontFamily] = React.useState('"JetBrains Mono", monospace');
   const [fontSize, setFontSize] = React.useState(16);
 
@@ -292,6 +299,94 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   const handleCut = () => {
     // Implementation of handleCut
+  };
+
+  const handleKeyPress = (key: string) => {
+    let newContent = content;
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+
+      switch (key) {
+        case '\b': // Backspace
+          if (start === end) {
+            newContent = content.slice(0, start - 1) + content.slice(end);
+            setTimeout(() => {
+              textarea.setSelectionRange(start - 1, start - 1);
+            }, 0);
+          } else {
+            newContent = content.slice(0, start) + content.slice(end);
+            setTimeout(() => {
+              textarea.setSelectionRange(start, start);
+            }, 0);
+          }
+          break;
+        case '\n': // Enter
+          newContent = content.slice(0, start) + '\n' + content.slice(end);
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 1, start + 1);
+          }, 0);
+          break;
+        case '\t': // Tab
+          newContent = content.slice(0, start) + '    ' + content.slice(end);
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 4, start + 4);
+          }, 0);
+          break;
+        case '\u001b[A': // Up arrow
+          const prevLineBreak = content.lastIndexOf('\n', start - 1);
+          const prevPrevLineBreak = content.lastIndexOf('\n', prevLineBreak - 1);
+          const currentLineOffset = start - (prevLineBreak + 1);
+          if (prevLineBreak !== -1) {
+            const targetPos = Math.min(
+              prevPrevLineBreak + 1 + currentLineOffset,
+              prevLineBreak
+            );
+            setTimeout(() => {
+              textarea.setSelectionRange(targetPos, targetPos);
+            }, 0);
+          }
+          return;
+        case '\u001b[B': // Down arrow
+          const nextLineBreak = content.indexOf('\n', start);
+          if (nextLineBreak !== -1) {
+            const currentLineStart = content.lastIndexOf('\n', start - 1) + 1;
+            const currentLineOffset = start - currentLineStart;
+            const targetPos = Math.min(
+              nextLineBreak + 1 + currentLineOffset,
+              content.indexOf('\n', nextLineBreak + 1) !== -1
+                ? content.indexOf('\n', nextLineBreak + 1)
+                : content.length
+            );
+            setTimeout(() => {
+              textarea.setSelectionRange(targetPos, targetPos);
+            }, 0);
+          }
+          return;
+        case '\u001b[C': // Right arrow
+          if (start < content.length) {
+            setTimeout(() => {
+              textarea.setSelectionRange(start + 1, start + 1);
+            }, 0);
+          }
+          return;
+        case '\u001b[D': // Left arrow
+          if (start > 0) {
+            setTimeout(() => {
+              textarea.setSelectionRange(start - 1, start - 1);
+            }, 0);
+          }
+          return;
+        default:
+          newContent = content.slice(0, start) + key + content.slice(end);
+          setTimeout(() => {
+            textarea.setSelectionRange(start + key.length, start + key.length);
+          }, 0);
+      }
+      setContent(newContent);
+      textarea.focus();
+    }
   };
 
   const toolbarGroups = [
@@ -331,109 +426,135 @@ const Toolbar: React.FC<ToolbarProps> = ({
         { icon: <SaveAlt />, action: () => {}, tooltip: 'Save (Ctrl+S)' },
         { icon: <Share />, action: () => {}, tooltip: 'Share' },
         { icon: <Calculate />, action: () => setCalculatorOpen(true), tooltip: 'Calculator' },
+        { icon: <KeyboardIcon />, action: () => setKeyboardOpen(true), tooltip: 'On-screen Keyboard' },
       ],
     },
   ];
 
   return (
     <>
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 1,
-          p: 1,
-          alignItems: 'center',
-          overflowX: 'auto',
-          '&::-webkit-scrollbar': {
-            height: 6,
-          },
-          '&::-webkit-scrollbar-thumb': {
-            backgroundColor: 'action.hover',
-            borderRadius: 3,
-          },
-        }}
-      >
-        {toolbarGroups.map((group, index) => (
-          <React.Fragment key={group.title}>
-            <ButtonGroup 
-              size="small" 
-              sx={{ 
-                height: 32,
-                '& .MuiButtonGroup-grouped': {
-                  minWidth: 32,
-                  px: 1,
-                },
-              }}
-            >
-              {group.tools.map((tool) => (
-                <Tooltip key={tool.tooltip} title={tool.tooltip}>
-                  <IconButton
-                    onClick={tool.action}
-                    size="small"
-                    sx={{
-                      borderRadius: 1,
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        backgroundColor: 'action.hover',
-                      },
-                      '& .MuiSvgIcon-root': {
-                        fontSize: '1.25rem',
-                      },
-                    }}
-                  >
-                    {tool.icon}
-                  </IconButton>
-                </Tooltip>
-              ))}
-            </ButtonGroup>
-            {index < toolbarGroups.length - 1 && (
-              <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-            )}
-          </React.Fragment>
-        ))}
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', ml: 'auto' }}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <Select
-              value={fontFamily}
-              onChange={(e) => setFontFamily(e.target.value)}
-              variant="outlined"
-              size="small"
-              sx={{
-                height: 32,
-                '& .MuiSelect-select': {
-                  py: 0.5,
-                  lineHeight: '1.2',
-                },
-              }}
-            >
-              {FONT_FAMILIES.map((font) => (
-                <MenuItem key={font.value} value={font.value}>
-                  {font.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 70 }}>
-            <Select
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              variant="outlined"
-              size="small"
-              sx={{
-                height: 32,
-                '& .MuiSelect-select': {
-                  py: 0.5,
-                  lineHeight: '1.2',
-                },
-              }}
-            >
-              {FONT_SIZES.map((size) => (
-                <MenuItem key={size} value={size}>
-                  {size}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+      <Box sx={{ 
+        p: 0.5, 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 1,
+        minHeight: 40,
+      }}>
+        <Tooltip title={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}>
+          <IconButton 
+            onClick={onSidebarToggle}
+            size="small"
+            sx={{
+              color: 'text.secondary',
+              '&:hover': { color: 'text.primary' },
+              '& .MuiSvgIcon-root': {
+                transition: 'transform 0.2s ease',
+                transform: isSidebarOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+                fontSize: '1.2rem',
+              },
+            }}
+          >
+            <ChevronLeft />
+          </IconButton>
+        </Tooltip>
+        <Divider orientation="vertical" flexItem />
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1,
+            alignItems: 'center',
+            overflowX: 'auto',
+            '&::-webkit-scrollbar': {
+              height: 6,
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: 'action.hover',
+              borderRadius: 3,
+            },
+          }}
+        >
+          {toolbarGroups.map((group, index) => (
+            <React.Fragment key={group.title}>
+              <ButtonGroup 
+                size="small" 
+                sx={{ 
+                  height: 28,
+                  '& .MuiButtonGroup-grouped': {
+                    minWidth: 28,
+                    px: 0.75,
+                  },
+                }}
+              >
+                {group.tools.map((tool) => (
+                  <Tooltip key={tool.tooltip} title={tool.tooltip}>
+                    <IconButton
+                      onClick={tool.action}
+                      size="small"
+                      sx={{
+                        borderRadius: 1,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                        '& .MuiSvgIcon-root': {
+                          fontSize: '1.1rem',
+                        },
+                      }}
+                    >
+                      {tool.icon}
+                    </IconButton>
+                  </Tooltip>
+                ))}
+              </ButtonGroup>
+              {index < toolbarGroups.length - 1 && (
+                <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+              )}
+            </React.Fragment>
+          ))}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', ml: 'auto' }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value)}
+                variant="outlined"
+                size="small"
+                sx={{
+                  height: 28,
+                  '& .MuiSelect-select': {
+                    py: 0.25,
+                    lineHeight: '1.2',
+                  },
+                }}
+              >
+                {FONT_FAMILIES.map((font) => (
+                  <MenuItem key={font.value} value={font.value}>
+                    {font.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 70 }}>
+              <Select
+                value={fontSize}
+                onChange={(e) => setFontSize(Number(e.target.value))}
+                variant="outlined"
+                size="small"
+                sx={{
+                  height: 28,
+                  '& .MuiSelect-select': {
+                    py: 0.25,
+                    lineHeight: '1.2',
+                  },
+                }}
+              >
+                {FONT_SIZES.map((size) => (
+                  <MenuItem key={size} value={size}>
+                    {size}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
         </Box>
       </Box>
 
@@ -452,6 +573,14 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <Calculator onClose={() => setCalculatorOpen(false)} />
         </DialogContent>
       </Dialog>
+
+      {keyboardOpen && (
+        <Keyboard 
+          onKeyPress={handleKeyPress}
+          onClose={() => setKeyboardOpen(false)}
+          scale={0.8}
+        />
+      )}
     </>
   );
 };

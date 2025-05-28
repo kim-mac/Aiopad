@@ -93,7 +93,6 @@ function App() {
               selectedNote={selectedNote}
               onNoteSelect={setSelectedNote}
               isOpen={isSidebarOpen}
-              onToggle={toggleSidebar}
             />
           </Box>
         </Box>
@@ -104,6 +103,8 @@ function App() {
             fontFamily={fontFamily}
             fontSize={fontSize}
             onFontChange={handleFontChange}
+            isSidebarOpen={isSidebarOpen}
+            onSidebarToggle={toggleSidebar}
           />
         </Box>
       </Box>
