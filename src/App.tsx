@@ -4,7 +4,7 @@ import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
 import ThemeControls from './components/ThemeControls';
 import { getThemeOptions, ThemeVariant, ColorMode } from './themes';
-import { saveThemePreference, getThemePreference } from './utils/storage';
+import { saveThemePreference, getThemePreference, saveNotes, getNotes } from './utils/storage';
 
 interface Note {
   id: string;
@@ -15,13 +15,18 @@ interface Note {
 
 function App() {
   const savedTheme = React.useMemo(() => getThemePreference(), []);
-  const [notes, setNotes] = React.useState<Note[]>([]);
+  const [notes, setNotes] = React.useState<Note[]>(() => getNotes());
   const [selectedNote, setSelectedNote] = React.useState<string | null>(null);
   const [mode, setMode] = React.useState<ColorMode>(savedTheme?.mode || 'dark');
   const [themeVariant, setThemeVariant] = React.useState<ThemeVariant>(savedTheme?.variant || 'ocean');
   const [fontFamily, setFontFamily] = React.useState('"JetBrains Mono", monospace');
   const [fontSize, setFontSize] = React.useState(16);
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+
+  // Save notes whenever they change
+  React.useEffect(() => {
+    saveNotes(notes);
+  }, [notes]);
 
   const theme = React.useMemo(
     () => createTheme(getThemeOptions(themeVariant, mode)),

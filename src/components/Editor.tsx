@@ -128,7 +128,6 @@ const Editor: React.FC<EditorProps> = ({
         px: 1.5,
         fontSize: '0.8125rem',
         color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'text.primary',
-        fontFamily: 'inherit',
       },
       '& .MuiChip-icon': {
         color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'text.primary',
@@ -267,6 +266,7 @@ const Editor: React.FC<EditorProps> = ({
             onFontChange={onFontChange}
             isSidebarOpen={isSidebarOpen}
             onSidebarToggle={onSidebarToggle}
+            noteTitle={note.title}
           />
         </Box>
         <Box
@@ -311,21 +311,18 @@ const Editor: React.FC<EditorProps> = ({
             borderTop: 1,
             borderColor: 'divider',
             borderRadius: 1,
-            fontFamily: fontFamily,
           }}
         >
           <Box sx={{ display: 'flex', gap: 3 }}>
             <Typography
               variant="body2"
               color="text.secondary"
-              sx={{ fontFamily: 'inherit' }}
             >
               Words: {getWordCount(note.content)}
             </Typography>
             <Typography
               variant="body2"
               color="text.secondary"
-              sx={{ fontFamily: 'inherit' }}
             >
               Characters: {getCharacterCount(note.content)}
             </Typography>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   IconButton,
@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import { ThemeVariant, ColorMode } from '../themes';
 import Keyboard from './Keyboard';
+import SaveMenu from './SaveMenu';
 
 interface ToolbarProps {
   content: string;
@@ -44,6 +45,7 @@ interface ToolbarProps {
   onFontChange: (fontFamily: string, fontSize: number) => void;
   isSidebarOpen: boolean;
   onSidebarToggle: () => void;
+  noteTitle?: string;
 }
 
 const FONT_FAMILIES = [
@@ -263,11 +265,20 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onFontChange,
   isSidebarOpen,
   onSidebarToggle,
+  noteTitle = 'Untitled',
 }) => {
-  const [calculatorOpen, setCalculatorOpen] = React.useState(false);
-  const [keyboardOpen, setKeyboardOpen] = React.useState(false);
+  const [saveMenuAnchor, setSaveMenuAnchor] = useState<null | HTMLElement>(null);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [undoStack, setUndoStack] = useState<string[]>([]);
+  const [redoStack, setRedoStack] = useState<string[]>([]);
   const [fontFamily, setFontFamily] = React.useState('"JetBrains Mono", monospace');
   const [fontSize, setFontSize] = React.useState(16);
+
+  useEffect(() => {
+    setUndoStack(prev => [...prev, content]);
+    setRedoStack([]);
+  }, [content]);
 
   React.useEffect(() => {
     onFontChange(fontFamily, fontSize);
@@ -278,11 +289,26 @@ const Toolbar: React.FC<ToolbarProps> = ({
   };
 
   const handleUndo = () => {
-    // Implementation of handleUndo
+    if (undoStack.length > 1) {
+      const newUndoStack = [...undoStack];
+      const currentState = newUndoStack.pop()!;
+      const previousState = newUndoStack[newUndoStack.length - 1];
+      
+      setUndoStack(newUndoStack);
+      setRedoStack(prev => [...prev, currentState]);
+      setContent(previousState);
+    }
   };
 
   const handleRedo = () => {
-    // Implementation of handleRedo
+    if (redoStack.length > 0) {
+      const newRedoStack = [...redoStack];
+      const nextState = newRedoStack.pop()!;
+      
+      setRedoStack(newRedoStack);
+      setUndoStack(prev => [...prev, nextState]);
+      setContent(nextState);
+    }
   };
 
   const handleFormat = (format: string) => {
@@ -290,15 +316,57 @@ const Toolbar: React.FC<ToolbarProps> = ({
   };
 
   const handleCopy = () => {
-    // Implementation of handleCopy
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const selectedText = content.substring(textarea.selectionStart, textarea.selectionEnd);
+      if (selectedText) {
+        navigator.clipboard.writeText(selectedText).catch(err => {
+          console.error('Failed to copy text:', err);
+        });
+      }
+    }
   };
 
-  const handlePaste = () => {
-    // Implementation of handlePaste
+  const handlePaste = async () => {
+    try {
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        const clipboardText = await navigator.clipboard.readText();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newContent = content.slice(0, start) + clipboardText + content.slice(end);
+        setContent(newContent);
+        
+        setTimeout(() => {
+          textarea.setSelectionRange(start + clipboardText.length, start + clipboardText.length);
+          textarea.focus();
+        }, 0);
+      }
+    } catch (err) {
+      console.error('Failed to paste text:', err);
+    }
   };
 
   const handleCut = () => {
-    // Implementation of handleCut
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const selectedText = content.substring(textarea.selectionStart, textarea.selectionEnd);
+      if (selectedText) {
+        navigator.clipboard.writeText(selectedText).then(() => {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const newContent = content.slice(0, start) + content.slice(end);
+          setContent(newContent);
+          
+          setTimeout(() => {
+            textarea.setSelectionRange(start, start);
+            textarea.focus();
+          }, 0);
+        }).catch(err => {
+          console.error('Failed to cut text:', err);
+        });
+      }
+    }
   };
 
   const handleKeyPress = (key: string) => {
@@ -389,6 +457,14 @@ const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
+  const handleSaveClick = (event: React.MouseEvent<HTMLElement>) => {
+    setSaveMenuAnchor(event.currentTarget);
+  };
+
+  const handleSaveMenuClose = () => {
+    setSaveMenuAnchor(null);
+  };
+
   const toolbarGroups = [
     {
       title: 'Clipboard',
@@ -423,7 +499,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
     {
       title: 'File',
       tools: [
-        { icon: <SaveAlt />, action: () => {}, tooltip: 'Save (Ctrl+S)' },
+        { icon: <SaveAlt />, action: handleSaveClick, tooltip: 'Save As... (Ctrl+S)' },
         { icon: <Share />, action: () => {}, tooltip: 'Share' },
         { icon: <Calculate />, action: () => setCalculatorOpen(true), tooltip: 'Calculator' },
         { icon: <KeyboardIcon />, action: () => setKeyboardOpen(true), tooltip: 'On-screen Keyboard' },
@@ -447,114 +523,73 @@ const Toolbar: React.FC<ToolbarProps> = ({
             sx={{
               color: 'text.secondary',
               '&:hover': { color: 'text.primary' },
-              '& .MuiSvgIcon-root': {
-                transition: 'transform 0.2s ease',
-                transform: isSidebarOpen ? 'rotate(0deg)' : 'rotate(180deg)',
-                fontSize: '1.2rem',
-              },
             }}
           >
-            <ChevronLeft />
+            {isSidebarOpen ? <ChevronLeft /> : <MenuIcon />}
           </IconButton>
         </Tooltip>
-        <Divider orientation="vertical" flexItem />
-        <Box
-          sx={{
-            display: 'flex',
-            gap: 1,
-            alignItems: 'center',
-            overflowX: 'auto',
-            '&::-webkit-scrollbar': {
-              height: 6,
-            },
-            '&::-webkit-scrollbar-thumb': {
-              backgroundColor: 'action.hover',
-              borderRadius: 3,
-            },
-          }}
-        >
-          {toolbarGroups.map((group, index) => (
-            <React.Fragment key={group.title}>
-              <ButtonGroup 
-                size="small" 
-                sx={{ 
-                  height: 28,
-                  '& .MuiButtonGroup-grouped': {
-                    minWidth: 28,
-                    px: 0.75,
-                  },
-                }}
-              >
-                {group.tools.map((tool) => (
-                  <Tooltip key={tool.tooltip} title={tool.tooltip}>
-                    <IconButton
-                      onClick={tool.action}
-                      size="small"
-                      sx={{
-                        borderRadius: 1,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          backgroundColor: 'action.hover',
-                        },
-                        '& .MuiSvgIcon-root': {
-                          fontSize: '1.1rem',
-                        },
-                      }}
-                    >
-                      {tool.icon}
-                    </IconButton>
-                  </Tooltip>
-                ))}
-              </ButtonGroup>
-              {index < toolbarGroups.length - 1 && (
-                <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-              )}
-            </React.Fragment>
-          ))}
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', ml: 'auto' }}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <Select
-                value={fontFamily}
-                onChange={(e) => setFontFamily(e.target.value)}
-                variant="outlined"
-                size="small"
-                sx={{
-                  height: 28,
-                  '& .MuiSelect-select': {
-                    py: 0.25,
-                    lineHeight: '1.2',
-                  },
-                }}
-              >
-                {FONT_FAMILIES.map((font) => (
-                  <MenuItem key={font.value} value={font.value}>
-                    {font.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 70 }}>
-              <Select
-                value={fontSize}
-                onChange={(e) => setFontSize(Number(e.target.value))}
-                variant="outlined"
-                size="small"
-                sx={{
-                  height: 28,
-                  '& .MuiSelect-select': {
-                    py: 0.25,
-                    lineHeight: '1.2',
-                  },
-                }}
-              >
-                {FONT_SIZES.map((size) => (
-                  <MenuItem key={size} value={size}>
-                    {size}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
+
+        {toolbarGroups.map((group, groupIndex) => (
+          <React.Fragment key={group.title}>
+            <ButtonGroup size="small" sx={{ height: 32 }}>
+              {group.tools.map((tool, toolIndex) => (
+                <Tooltip key={tool.tooltip} title={tool.tooltip}>
+                  <IconButton
+                    onClick={tool.action}
+                    size="small"
+                    sx={{
+                      color: 'text.secondary',
+                      '&:hover': { color: 'text.primary' },
+                    }}
+                  >
+                    {tool.icon}
+                  </IconButton>
+                </Tooltip>
+              ))}
+            </ButtonGroup>
+            {groupIndex < toolbarGroups.length - 1 && (
+              <Divider orientation="vertical" flexItem />
+            )}
+          </React.Fragment>
+        ))}
+
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center' }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <Select
+              value={fontFamily}
+              onChange={(e) => setFontFamily(e.target.value)}
+              sx={{
+                height: 32,
+                '& .MuiSelect-select': {
+                  py: 0.5,
+                },
+              }}
+            >
+              {FONT_FAMILIES.map((font) => (
+                <MenuItem key={font.value} value={font.value}>
+                  {font.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 70 }}>
+            <Select
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+              sx={{
+                height: 32,
+                '& .MuiSelect-select': {
+                  py: 0.5,
+                },
+              }}
+            >
+              {FONT_SIZES.map((size) => (
+                <MenuItem key={size} value={size}>
+                  {size}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Box>
       </Box>
 
@@ -562,10 +597,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         open={calculatorOpen}
         onClose={() => setCalculatorOpen(false)}
         PaperProps={{
-          sx: {
-            borderRadius: 2,
-            p: 2,
-          },
+          sx: { borderRadius: 2 }
         }}
       >
         <DialogTitle>Calculator</DialogTitle>
@@ -575,12 +607,19 @@ const Toolbar: React.FC<ToolbarProps> = ({
       </Dialog>
 
       {keyboardOpen && (
-        <Keyboard 
+        <Keyboard
           onKeyPress={handleKeyPress}
           onClose={() => setKeyboardOpen(false)}
-          scale={0.8}
         />
       )}
+
+      <SaveMenu
+        anchorEl={saveMenuAnchor}
+        open={Boolean(saveMenuAnchor)}
+        onClose={handleSaveMenuClose}
+        noteTitle={noteTitle}
+        noteContent={content}
+      />
     </>
   );
 };
