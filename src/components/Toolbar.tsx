@@ -15,6 +15,7 @@ import {
   Button,
   Typography,
   Paper,
+  CircularProgress,
 } from '@mui/material';
 import {
   FormatBold,
@@ -34,10 +35,17 @@ import {
   Calculate,
   Backspace,
   Keyboard as KeyboardIcon,
+  AutoFixHigh,
+  Summarize,
+  Psychology,
+  Autorenew,
+  SmartToy,
+  Face,
 } from '@mui/icons-material';
 import { ThemeVariant, ColorMode } from '../themes';
 import Keyboard from './Keyboard';
 import SaveMenu from './SaveMenu';
+import { getSuggestions, summarizeText, improveWriting, paraphraseText, detectAIText, humanizeText, AIDetectionResult } from '../utils/ai';
 
 interface ToolbarProps {
   content: string;
@@ -46,6 +54,12 @@ interface ToolbarProps {
   isSidebarOpen: boolean;
   onSidebarToggle: () => void;
   noteTitle?: string;
+}
+
+interface AIDetectionDialogProps {
+  open: boolean;
+  onClose: () => void;
+  detectionResult: AIDetectionResult | null;
 }
 
 const FONT_FAMILIES = [
@@ -259,6 +273,45 @@ const Calculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   );
 };
 
+const AIDetectionDialog: React.FC<AIDetectionDialogProps> = ({
+  open,
+  onClose,
+  detectionResult
+}) => {
+  if (!detectionResult) return null;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>AI Text Detection Results</DialogTitle>
+      <DialogContent>
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="h6" color={detectionResult.isAIGenerated ? "error" : "success"}>
+            {detectionResult.isAIGenerated ? "Likely AI Generated" : "Likely Human Written"}
+          </Typography>
+          <Typography variant="body1" sx={{ mt: 1 }}>
+            Confidence: {Math.round(detectionResult.confidence * 100)}%
+          </Typography>
+          <Typography variant="h6" sx={{ mt: 2 }}>
+            Indicators:
+          </Typography>
+          <Box component="ul" sx={{ mt: 1 }}>
+            {detectionResult.indicators.map((indicator, index) => (
+              <Typography component="li" key={index}>
+                {indicator}
+              </Typography>
+            ))}
+          </Box>
+        </Box>
+      </DialogContent>
+      <Box sx={{ p: 2 }}>
+        <Button variant="contained" onClick={onClose} fullWidth>
+          Close
+        </Button>
+      </Box>
+    </Dialog>
+  );
+};
+
 const Toolbar: React.FC<ToolbarProps> = ({
   content,
   setContent,
@@ -274,6 +327,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const [redoStack, setRedoStack] = useState<string[]>([]);
   const [fontFamily, setFontFamily] = React.useState('"JetBrains Mono", monospace');
   const [fontSize, setFontSize] = React.useState(16);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiDetectionResult, setAiDetectionResult] = useState<AIDetectionResult | null>(null);
+  const [aiDetectionDialogOpen, setAiDetectionDialogOpen] = useState(false);
 
   useEffect(() => {
     setUndoStack(prev => [...prev, content]);
@@ -465,6 +521,139 @@ const Toolbar: React.FC<ToolbarProps> = ({
     setSaveMenuAnchor(null);
   };
 
+  const handleImproveWriting = async () => {
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const selectedText = content.substring(textarea.selectionStart, textarea.selectionEnd);
+      if (selectedText) {
+        setIsAiLoading(true);
+        try {
+          const improvedText = await improveWriting(selectedText);
+          if (improvedText) {
+            const newContent = content.slice(0, textarea.selectionStart) + 
+                             improvedText + 
+                             content.slice(textarea.selectionEnd);
+            setContent(newContent);
+          }
+        } catch (error) {
+          console.error('Error improving text:', error);
+        } finally {
+          setIsAiLoading(false);
+        }
+      }
+    }
+  };
+
+  const handleSummarize = async () => {
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const selectedText = content.substring(textarea.selectionStart, textarea.selectionEnd);
+      if (selectedText) {
+        setIsAiLoading(true);
+        try {
+          const summary = await summarizeText(selectedText);
+          if (summary) {
+            const newContent = content.slice(0, textarea.selectionStart) + 
+                             '\n\nSummary:\n' + summary + '\n\n' + 
+                             content.slice(textarea.selectionEnd);
+            setContent(newContent);
+          }
+        } catch (error) {
+          console.error('Error summarizing text:', error);
+        } finally {
+          setIsAiLoading(false);
+        }
+      }
+    }
+  };
+
+  const handleAutoComplete = async () => {
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const cursorPosition = textarea.selectionStart;
+      const textBeforeCursor = content.substring(0, cursorPosition);
+      
+      setIsAiLoading(true);
+      try {
+        const suggestion = await getSuggestions(textBeforeCursor);
+        if (suggestion) {
+          const newContent = content.slice(0, cursorPosition) + 
+                           suggestion + 
+                           content.slice(cursorPosition);
+          setContent(newContent);
+          
+          setTimeout(() => {
+            textarea.setSelectionRange(
+              cursorPosition + suggestion.length,
+              cursorPosition + suggestion.length
+            );
+            textarea.focus();
+          }, 0);
+        }
+      } catch (error) {
+        console.error('Error getting suggestions:', error);
+      } finally {
+        setIsAiLoading(false);
+      }
+    }
+  };
+
+  const handleParaphrase = async () => {
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const selectedText = content.substring(textarea.selectionStart, textarea.selectionEnd);
+      if (selectedText) {
+        setIsAiLoading(true);
+        try {
+          const paraphrasedText = await paraphraseText(selectedText);
+          if (paraphrasedText) {
+            const newContent = content.slice(0, textarea.selectionStart) + 
+                             paraphrasedText + 
+                             content.slice(textarea.selectionEnd);
+            setContent(newContent);
+          }
+        } catch (error) {
+          console.error('Error paraphrasing text:', error);
+        } finally {
+          setIsAiLoading(false);
+        }
+      }
+    }
+  };
+
+  const handleAIDetection = () => {
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const selectedText = content.substring(textarea.selectionStart, textarea.selectionEnd);
+      if (selectedText) {
+        const result = detectAIText(selectedText);
+        setAiDetectionResult(result);
+        setAiDetectionDialogOpen(true);
+      }
+    }
+  };
+
+  const handleHumanize = () => {
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const selectedText = content.substring(textarea.selectionStart, textarea.selectionEnd);
+      if (selectedText) {
+        setIsAiLoading(true);
+        try {
+          const humanizedText = humanizeText(selectedText);
+          const newContent = content.slice(0, textarea.selectionStart) + 
+                           humanizedText + 
+                           content.slice(textarea.selectionEnd);
+          setContent(newContent);
+        } catch (error) {
+          console.error('Error humanizing text:', error);
+        } finally {
+          setIsAiLoading(false);
+        }
+      }
+    }
+  };
+
   const toolbarGroups = [
     {
       title: 'Clipboard',
@@ -505,6 +694,41 @@ const Toolbar: React.FC<ToolbarProps> = ({
         { icon: <KeyboardIcon />, action: () => setKeyboardOpen(true), tooltip: 'On-screen Keyboard' },
       ],
     },
+    {
+      title: 'AI Tools',
+      tools: [
+        { 
+          icon: <AutoFixHigh />, 
+          action: handleImproveWriting, 
+          tooltip: 'Improve Writing (Select text first)' 
+        },
+        { 
+          icon: <Autorenew />, 
+          action: handleParaphrase, 
+          tooltip: 'Paraphrase (Select text first)' 
+        },
+        { 
+          icon: <Summarize />, 
+          action: handleSummarize, 
+          tooltip: 'Summarize (Select text first)' 
+        },
+        { 
+          icon: <Psychology />, 
+          action: handleAutoComplete, 
+          tooltip: 'AI Complete' 
+        },
+        { 
+          icon: <SmartToy />, 
+          action: handleAIDetection, 
+          tooltip: 'Detect AI Text (Select text first)' 
+        },
+        { 
+          icon: <Face />, 
+          action: handleHumanize, 
+          tooltip: 'Humanize Text (Select text first)' 
+        },
+      ],
+    },
   ];
 
   return (
@@ -515,6 +739,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         alignItems: 'center', 
         gap: 1,
         minHeight: 40,
+        position: 'relative',
       }}>
         <Tooltip title={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}>
           <IconButton 
@@ -591,6 +816,18 @@ const Toolbar: React.FC<ToolbarProps> = ({
             </Select>
           </FormControl>
         </Box>
+
+        {isAiLoading && (
+          <CircularProgress
+            size={24}
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+            }}
+          />
+        )}
       </Box>
 
       <Dialog
@@ -619,6 +856,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
         onClose={handleSaveMenuClose}
         noteTitle={noteTitle}
         noteContent={content}
+      />
+
+      <AIDetectionDialog
+        open={aiDetectionDialogOpen}
+        onClose={() => setAiDetectionDialogOpen(false)}
+        detectionResult={aiDetectionResult}
       />
     </>
   );
