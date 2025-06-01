@@ -14,8 +14,8 @@
     "@huggingface/inference": "^3.15.0",
     "@mui/icons-material": "^5.13.0",
     "@mui/material": "^5.13.0",
-    "@types/node": "^22.15.29",
     "docx": "^9.5.0",
+    "dotenv": "^16.5.0",
     "jspdf": "^3.0.1",
     "openai": "^5.0.1",
     "react": "^18.2.0",
@@ -25,6 +25,8 @@
     "zustand": "^4.3.8"
   },
   "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "@types/node": "^22.15.29",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.0.0",
