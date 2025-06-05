@@ -11,6 +11,10 @@ interface Note {
   title: string;
   content: string;
   lastModified: Date;
+  createdAt?: Date;
+  isPinned?: boolean;
+  isLocked?: boolean;
+  password?: string;
 }
 
 function App() {
@@ -70,6 +74,15 @@ function App() {
     setFontSize(newFontSize);
   };
 
+  const handleNoteSelect = (noteId: string | null) => {
+    const targetNote = notes.find(note => note.id === noteId);
+    if (targetNote?.isLocked) {
+      // Don't select locked notes
+      return;
+    }
+    setSelectedNote(noteId);
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -96,7 +109,7 @@ function App() {
               notes={notes}
               setNotes={setNotes}
               selectedNote={selectedNote}
-              onNoteSelect={setSelectedNote}
+              onNoteSelect={handleNoteSelect}
               isOpen={isSidebarOpen}
             />
           </Box>

@@ -16,6 +16,11 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Menu,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -24,6 +29,10 @@ import {
   Sort as SortIcon,
   ChevronLeft,
   Menu as MenuIcon,
+  PushPin as PinIcon,
+  MoreVert as MoreVertIcon,
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
 } from '@mui/icons-material';
 
 interface Note {
@@ -32,6 +41,9 @@ interface Note {
   content: string;
   lastModified: Date;
   createdAt?: Date; // Make it optional for backward compatibility
+  isPinned?: boolean;
+  isLocked?: boolean;
+  password?: string;
 }
 
 interface SidebarProps {
@@ -55,6 +67,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [selectedNotes, setSelectedNotes] = React.useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = React.useState(false);
   const [sortBy, setSortBy] = React.useState<SortOption>('modified-desc');
+  const [menuAnchorEl, setMenuAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [activeNoteId, setActiveNoteId] = React.useState<string | null>(null);
+  const [lockDialogOpen, setLockDialogOpen] = React.useState(false);
+  const [unlockDialogOpen, setUnlockDialogOpen] = React.useState(false);
+  const [password, setPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
+  const [passwordError, setPasswordError] = React.useState('');
 
   const handleAddNote = () => {
     const newNote: Note = {
@@ -63,6 +82,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       content: '',
       lastModified: new Date(),
       createdAt: new Date(),
+      isPinned: false,
+      isLocked: false,
     };
     setNotes([newNote, ...notes]);
     onNoteSelect(newNote.id);
@@ -92,24 +113,55 @@ const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
+  const togglePin = (noteId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setNotes(notes.map(note => 
+      note.id === noteId 
+        ? { ...note, isPinned: !note.isPinned, lastModified: new Date() }
+        : note
+    ));
+  };
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, noteId: string) => {
+    event.stopPropagation();
+    setMenuAnchorEl(event.currentTarget);
+    setActiveNoteId(noteId);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchorEl(null);
+    setActiveNoteId(null);
+  };
+
   const sortNotes = (notesToSort: Note[]): Note[] => {
     const sortedNotes = [...notesToSort];
-    switch (sortBy) {
-      case 'modified-desc':
-        return sortedNotes.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
-      case 'modified-asc':
-        return sortedNotes.sort((a, b) => a.lastModified.getTime() - b.lastModified.getTime());
-      case 'created-desc':
-        return sortedNotes.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
-      case 'created-asc':
-        return sortedNotes.sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
-      case 'title-asc':
-        return sortedNotes.sort((a, b) => a.title.localeCompare(b.title));
-      case 'title-desc':
-        return sortedNotes.sort((a, b) => b.title.localeCompare(a.title));
-      default:
-        return sortedNotes;
-    }
+    
+    // First separate pinned and unpinned notes
+    const pinnedNotes = sortedNotes.filter(note => note.isPinned);
+    const unpinnedNotes = sortedNotes.filter(note => !note.isPinned);
+    
+    // Sort each group separately
+    const sortGroup = (notes: Note[]) => {
+      switch (sortBy) {
+        case 'modified-desc':
+          return notes.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+        case 'modified-asc':
+          return notes.sort((a, b) => a.lastModified.getTime() - b.lastModified.getTime());
+        case 'created-desc':
+          return notes.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+        case 'created-asc':
+          return notes.sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
+        case 'title-asc':
+          return notes.sort((a, b) => a.title.localeCompare(b.title));
+        case 'title-desc':
+          return notes.sort((a, b) => b.title.localeCompare(a.title));
+        default:
+          return notes;
+      }
+    };
+
+    // Return concatenated sorted groups with pinned notes first
+    return [...sortGroup(pinnedNotes), ...sortGroup(unpinnedNotes)];
   };
 
   const filteredNotes = React.useMemo(() => {
@@ -127,6 +179,58 @@ const Sidebar: React.FC<SidebarProps> = ({
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const handleLockNote = () => {
+    setPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setLockDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handleUnlockNote = () => {
+    setPassword('');
+    setPasswordError('');
+    setUnlockDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handleLockConfirm = () => {
+    if (password.length < 4) {
+      setPasswordError('Password must be at least 4 characters long');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
+    setNotes(notes.map(note =>
+      note.id === activeNoteId
+        ? { ...note, isLocked: true, password, lastModified: new Date() }
+        : note
+    ));
+    setLockDialogOpen(false);
+    setPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+  };
+
+  const handleUnlockConfirm = () => {
+    const note = notes.find(n => n.id === activeNoteId);
+    if (note && note.password === password) {
+      setNotes(notes.map(n =>
+        n.id === activeNoteId
+          ? { ...note, isLocked: false, password: undefined, lastModified: new Date() }
+          : n
+      ));
+      setUnlockDialogOpen(false);
+      setPassword('');
+      setPasswordError('');
+    } else {
+      setPasswordError('Incorrect password');
+    }
   };
 
   return (
@@ -234,16 +338,25 @@ const Sidebar: React.FC<SidebarProps> = ({
             disablePadding
             secondaryAction={
               !isSelectionMode && (
-                <IconButton
-                  edge="end"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteNote(note.id);
-                  }}
-                  sx={{ opacity: 0.5 }}
-                >
-                  <DeleteIcon />
-                </IconButton>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  {note.isLocked && (
+                    <LockIcon 
+                      sx={{ 
+                        fontSize: '1rem',
+                        opacity: 0.5,
+                        mr: 1,
+                        color: 'primary.main'
+                      }} 
+                    />
+                  )}
+                  <IconButton
+                    edge="end"
+                    onClick={(e) => handleMenuOpen(e, note.id)}
+                    sx={{ opacity: 0.5 }}
+                  >
+                    <MoreVertIcon />
+                  </IconButton>
+                </Box>
               )
             }
           >
@@ -266,7 +379,30 @@ const Sidebar: React.FC<SidebarProps> = ({
                 />
               )}
               <ListItemText
-                primary={note.title}
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    {note.isPinned && (
+                      <PinIcon 
+                        sx={{ 
+                          fontSize: '0.8rem', 
+                          mr: 1, 
+                          transform: 'rotate(45deg)',
+                          color: 'primary.main'
+                        }} 
+                      />
+                    )}
+                    <Typography
+                      sx={{
+                        fontWeight: selectedNote === note.id ? 600 : 400,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {note.title}
+                    </Typography>
+                  </Box>
+                }
                 secondary={
                   <React.Fragment>
                     <Typography
@@ -289,19 +425,139 @@ const Sidebar: React.FC<SidebarProps> = ({
                     )}
                   </React.Fragment>
                 }
-                primaryTypographyProps={{
-                  sx: {
-                    fontWeight: selectedNote === note.id ? 600 : 400,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  },
-                }}
               />
             </ListItemButton>
           </ListItem>
         ))}
       </List>
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={handleMenuClose}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <MenuItem
+          onClick={(e) => {
+            e.stopPropagation();
+            if (activeNoteId) {
+              togglePin(activeNoteId, e);
+              handleMenuClose();
+            }
+          }}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          <PinIcon sx={{ 
+            fontSize: '1.2rem',
+            transform: notes.find(n => n.id === activeNoteId)?.isPinned ? 'rotate(45deg)' : 'none'
+          }} />
+          <Typography>
+            {notes.find(n => n.id === activeNoteId)?.isPinned ? 'Unpin note' : 'Pin note'}
+          </Typography>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (note?.isLocked) {
+              handleUnlockNote();
+            } else {
+              handleLockNote();
+            }
+          }}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          {notes.find(n => n.id === activeNoteId)?.isLocked ? (
+            <>
+              <LockOpenIcon sx={{ fontSize: '1.2rem' }} />
+              <Typography>Unlock note</Typography>
+            </>
+          ) : (
+            <>
+              <LockIcon sx={{ fontSize: '1.2rem' }} />
+              <Typography>Lock note</Typography>
+            </>
+          )}
+        </MenuItem>
+        <MenuItem
+          onClick={(e) => {
+            e.stopPropagation();
+            if (activeNoteId) {
+              handleDeleteNote(activeNoteId);
+              handleMenuClose();
+            }
+          }}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            color: 'error.main',
+          }}
+        >
+          <DeleteIcon sx={{ fontSize: '1.2rem' }} />
+          <Typography>Delete note</Typography>
+        </MenuItem>
+      </Menu>
+
+      {/* Lock Dialog */}
+      <Dialog open={lockDialogOpen} onClose={() => setLockDialogOpen(false)}>
+        <DialogTitle>Lock Note</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={Boolean(passwordError)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Confirm Password"
+            type="password"
+            fullWidth
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            error={Boolean(passwordError)}
+            helperText={passwordError}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLockDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleLockConfirm} variant="contained">Lock</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Unlock Dialog */}
+      <Dialog open={unlockDialogOpen} onClose={() => setUnlockDialogOpen(false)}>
+        <DialogTitle>Unlock Note</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={Boolean(passwordError)}
+            helperText={passwordError}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUnlockDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleUnlockConfirm} variant="contained">Unlock</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

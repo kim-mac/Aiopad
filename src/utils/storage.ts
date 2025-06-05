@@ -10,6 +10,7 @@ interface Note {
   content: string;
   lastModified: Date;
   createdAt?: Date;
+  isPinned?: boolean;
 }
 
 const isStorageAvailable = () => {
