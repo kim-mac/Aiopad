@@ -15,6 +15,7 @@ interface Note {
   isPinned?: boolean;
   isLocked?: boolean;
   password?: string;
+  color?: string;
 }
 
 function App() {

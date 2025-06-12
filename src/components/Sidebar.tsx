@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  useTheme,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -33,6 +34,7 @@ import {
   MoreVert as MoreVertIcon,
   Lock as LockIcon,
   LockOpen as LockOpenIcon,
+  Palette as PaletteIcon,
 } from '@mui/icons-material';
 
 interface Note {
@@ -44,6 +46,7 @@ interface Note {
   isPinned?: boolean;
   isLocked?: boolean;
   password?: string;
+  color?: string;
 }
 
 interface SidebarProps {
@@ -56,6 +59,41 @@ interface SidebarProps {
 
 type SortOption = 'modified-desc' | 'modified-asc' | 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc';
 
+const NOTE_COLORS = {
+  default: {
+    light: 'transparent',
+    dark: 'transparent'
+  },
+  red: {
+    light: '#ffebee',
+    dark: '#3b1219'
+  },
+  orange: {
+    light: '#fff3e0',
+    dark: '#332611'
+  },
+  yellow: {
+    light: '#fffde7',
+    dark: '#2d2b15'
+  },
+  green: {
+    light: '#e8f5e9',
+    dark: '#1a2e1b'
+  },
+  blue: {
+    light: '#e3f2fd',
+    dark: '#1a2733'
+  },
+  purple: {
+    light: '#f3e5f5',
+    dark: '#221a2d'
+  },
+  teal: {
+    light: '#e0f2f1',
+    dark: '#1a2c2c'
+  }
+};
+
 const Sidebar: React.FC<SidebarProps> = ({
   notes,
   setNotes,
@@ -63,11 +101,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNoteSelect,
   isOpen,
 }) => {
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedNotes, setSelectedNotes] = React.useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = React.useState(false);
   const [sortBy, setSortBy] = React.useState<SortOption>('modified-desc');
   const [menuAnchorEl, setMenuAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [colorMenuAnchorEl, setColorMenuAnchorEl] = React.useState<null | HTMLElement>(null);
   const [activeNoteId, setActiveNoteId] = React.useState<string | null>(null);
   const [lockDialogOpen, setLockDialogOpen] = React.useState(false);
   const [unlockDialogOpen, setUnlockDialogOpen] = React.useState(false);
@@ -84,6 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       createdAt: new Date(),
       isPinned: false,
       isLocked: false,
+      color: 'default',
     };
     setNotes([newNote, ...notes]);
     onNoteSelect(newNote.id);
@@ -131,6 +173,27 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleMenuClose = () => {
     setMenuAnchorEl(null);
     setActiveNoteId(null);
+  };
+
+  const handleColorMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setColorMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleColorMenuClose = () => {
+    setColorMenuAnchorEl(null);
+  };
+
+  const handleColorSelect = (color: string) => {
+    if (activeNoteId) {
+      setNotes(notes.map(note =>
+        note.id === activeNoteId
+          ? { ...note, color, lastModified: new Date() }
+          : note
+      ));
+    }
+    handleColorMenuClose();
+    handleMenuClose();
   };
 
   const sortNotes = (notesToSort: Note[]): Note[] => {
@@ -231,6 +294,19 @@ const Sidebar: React.FC<SidebarProps> = ({
     } else {
       setPasswordError('Incorrect password');
     }
+  };
+
+  const getNoteBackgroundColor = (colorName: string | undefined) => {
+    if (!colorName || colorName === 'default') return 'transparent';
+    const colorSet = NOTE_COLORS[colorName as keyof typeof NOTE_COLORS];
+    return isDarkMode ? colorSet.dark : colorSet.light;
+  };
+
+  const getTextColor = (colorName: string | undefined) => {
+    if (!colorName || colorName === 'default') {
+      return 'inherit';
+    }
+    return isDarkMode ? 'rgba(255, 255, 255, 0.95)' : 'rgba(0, 0, 0, 0.87)';
   };
 
   return (
@@ -336,6 +412,18 @@ const Sidebar: React.FC<SidebarProps> = ({
           <ListItem
             key={note.id}
             disablePadding
+            sx={{
+              backgroundColor: getNoteBackgroundColor(note.color),
+              transition: 'background-color 0.2s',
+              '& .MuiTypography-root': {
+                color: getTextColor(note.color),
+              },
+              '& .MuiTypography-colorTextSecondary': {
+                color: theme => note.color && note.color !== 'default'
+                  ? (isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.6)')
+                  : theme.palette.text.secondary,
+              },
+            }}
             secondaryAction={
               !isSelectionMode && (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -345,14 +433,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                         fontSize: '1rem',
                         opacity: 0.5,
                         mr: 1,
-                        color: 'primary.main'
+                        color: note.color && note.color !== 'default'
+                          ? (isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'primary.main')
+                          : 'primary.main'
                       }} 
                     />
                   )}
                   <IconButton
                     edge="end"
                     onClick={(e) => handleMenuOpen(e, note.id)}
-                    sx={{ opacity: 0.5 }}
+                    sx={{ 
+                      opacity: 0.5,
+                      color: note.color && note.color !== 'default'
+                        ? getTextColor(note.color)
+                        : 'inherit'
+                    }}
                   >
                     <MoreVertIcon />
                   </IconButton>
@@ -367,7 +462,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                   ? toggleNoteSelection(note.id)
                   : onNoteSelect(note.id)
               }
-              sx={{ pr: isSelectionMode ? 2 : 7 }}
+              sx={{ 
+                pr: isSelectionMode ? 2 : 7,
+                '&.Mui-selected': {
+                  backgroundColor: theme => note.color && note.color !== 'default'
+                    ? (isDarkMode 
+                      ? `${getNoteBackgroundColor(note.color)}cc`  // 80% opacity for better contrast
+                      : `${getNoteBackgroundColor(note.color)}80`)
+                    : theme.palette.action.selected,
+                },
+                '&:hover': {
+                  backgroundColor: theme => note.color && note.color !== 'default'
+                    ? (isDarkMode 
+                      ? `${getNoteBackgroundColor(note.color)}99`  // 60% opacity for hover
+                      : `${getNoteBackgroundColor(note.color)}60`)
+                    : theme.palette.action.hover,
+                },
+              }}
             >
               {isSelectionMode && (
                 <Checkbox
@@ -387,7 +498,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                           fontSize: '0.8rem', 
                           mr: 1, 
                           transform: 'rotate(45deg)',
-                          color: 'primary.main'
+                          color: note.color && note.color !== 'default'
+                            ? (isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'primary.main')
+                            : 'primary.main'
                         }} 
                       />
                     )}
@@ -408,7 +521,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <Typography
                       component="span"
                       variant="body2"
-                      color="text.secondary"
                       sx={{ display: 'block' }}
                     >
                       Modified: {formatDateTime(note.lastModified)}
@@ -417,7 +529,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <Typography
                         component="span"
                         variant="body2"
-                        color="text.secondary"
                         sx={{ display: 'block' }}
                       >
                         Created: {formatDateTime(note.createdAt)}
@@ -457,6 +568,17 @@ const Sidebar: React.FC<SidebarProps> = ({
           <Typography>
             {notes.find(n => n.id === activeNoteId)?.isPinned ? 'Unpin note' : 'Pin note'}
           </Typography>
+        </MenuItem>
+        <MenuItem
+          onClick={handleColorMenuOpen}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          <PaletteIcon sx={{ fontSize: '1.2rem' }} />
+          <Typography>Change color</Typography>
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -503,6 +625,41 @@ const Sidebar: React.FC<SidebarProps> = ({
           <DeleteIcon sx={{ fontSize: '1.2rem' }} />
           <Typography>Delete note</Typography>
         </MenuItem>
+      </Menu>
+
+      {/* Color Menu */}
+      <Menu
+        anchorEl={colorMenuAnchorEl}
+        open={Boolean(colorMenuAnchorEl)}
+        onClose={handleColorMenuClose}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {Object.entries(NOTE_COLORS).map(([colorName, colorValue]) => (
+          <MenuItem
+            key={colorName}
+            onClick={() => handleColorSelect(colorName)}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              minWidth: 150,
+            }}
+          >
+            <Box
+              sx={{
+                width: 20,
+                height: 20,
+                borderRadius: 1,
+                backgroundColor: isDarkMode ? colorValue.dark : colorValue.light,
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
+            />
+            <Typography sx={{ textTransform: 'capitalize' }}>
+              {colorName}
+            </Typography>
+          </MenuItem>
+        ))}
       </Menu>
 
       {/* Lock Dialog */}
