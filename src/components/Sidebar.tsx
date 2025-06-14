@@ -22,6 +22,7 @@ import {
   DialogContent,
   DialogActions,
   useTheme,
+  Collapse,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -35,6 +36,10 @@ import {
   Lock as LockIcon,
   LockOpen as LockOpenIcon,
   Palette as PaletteIcon,
+  Archive as ArchiveIcon,
+  Unarchive as UnarchiveIcon,
+  ExpandLess as ExpandLessIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 
 interface Note {
@@ -47,6 +52,7 @@ interface Note {
   isLocked?: boolean;
   password?: string;
   color?: string;
+  isArchived?: boolean;
 }
 
 interface SidebarProps {
@@ -115,6 +121,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [password, setPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
   const [passwordError, setPasswordError] = React.useState('');
+  const [showArchived, setShowArchived] = React.useState(false);
 
   const handleAddNote = () => {
     const newNote: Note = {
@@ -126,6 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       isPinned: false,
       isLocked: false,
       color: 'default',
+      isArchived: false,
     };
     setNotes([newNote, ...notes]);
     onNoteSelect(newNote.id);
@@ -309,6 +317,28 @@ const Sidebar: React.FC<SidebarProps> = ({
     return isDarkMode ? 'rgba(255, 255, 255, 0.95)' : 'rgba(0, 0, 0, 0.87)';
   };
 
+  const handleArchiveNote = (noteId: string) => {
+    setNotes(notes.map(note =>
+      note.id === noteId
+        ? { ...note, isArchived: true, lastModified: new Date() }
+        : note
+    ));
+    if (selectedNote === noteId) {
+      onNoteSelect(null);
+    }
+  };
+
+  const handleUnarchiveNote = (noteId: string) => {
+    setNotes(notes.map(note =>
+      note.id === noteId
+        ? { ...note, isArchived: false, lastModified: new Date() }
+        : note
+    ));
+  };
+
+  const activeNotes = filteredNotes.filter(note => !note.isArchived);
+  const archivedNotes = filteredNotes.filter(note => note.isArchived);
+
   return (
     <Box
       sx={{
@@ -408,7 +438,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
       <Divider />
       <List sx={{ flex: 1, overflow: 'auto' }}>
-        {filteredNotes.map((note) => (
+        {activeNotes.map((note) => (
           <ListItem
             key={note.id}
             disablePadding
@@ -540,6 +570,170 @@ const Sidebar: React.FC<SidebarProps> = ({
             </ListItemButton>
           </ListItem>
         ))}
+
+        {archivedNotes.length > 0 && (
+          <>
+            <ListItem
+              button
+              onClick={() => setShowArchived(!showArchived)}
+              sx={{
+                borderTop: 1,
+                borderBottom: 1,
+                borderColor: 'divider',
+                mt: 2,
+              }}
+            >
+              <ListItemText
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <ArchiveIcon sx={{ fontSize: '1.2rem', opacity: 0.7 }} />
+                    <Typography variant="subtitle2" sx={{ opacity: 0.7 }}>
+                      Archived Notes
+                    </Typography>
+                  </Box>
+                }
+              />
+              {showArchived ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </ListItem>
+            <Collapse in={showArchived} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {archivedNotes.map((note) => (
+                  <ListItem
+                    key={note.id}
+                    disablePadding
+                    sx={{
+                      backgroundColor: getNoteBackgroundColor(note.color),
+                      transition: 'background-color 0.2s',
+                      opacity: 0.8,
+                      '& .MuiTypography-root': {
+                        color: getTextColor(note.color),
+                      },
+                      '& .MuiTypography-colorTextSecondary': {
+                        color: theme => note.color && note.color !== 'default'
+                          ? (isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.6)')
+                          : theme.palette.text.secondary,
+                      },
+                    }}
+                    secondaryAction={
+                      !isSelectionMode && (
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          {note.isLocked && (
+                            <LockIcon 
+                              sx={{ 
+                                fontSize: '1rem',
+                                opacity: 0.5,
+                                mr: 1,
+                                color: note.color && note.color !== 'default'
+                                  ? (isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'primary.main')
+                                  : 'primary.main'
+                              }} 
+                            />
+                          )}
+                          <IconButton
+                            edge="end"
+                            onClick={(e) => handleMenuOpen(e, note.id)}
+                            sx={{ 
+                              opacity: 0.5,
+                              color: note.color && note.color !== 'default'
+                                ? getTextColor(note.color)
+                                : 'inherit'
+                            }}
+                          >
+                            <MoreVertIcon />
+                          </IconButton>
+                        </Box>
+                      )
+                    }
+                  >
+                    <ListItemButton
+                      selected={selectedNote === note.id}
+                      onClick={() =>
+                        isSelectionMode
+                          ? toggleNoteSelection(note.id)
+                          : onNoteSelect(note.id)
+                      }
+                      sx={{ 
+                        pr: isSelectionMode ? 2 : 7,
+                        '&.Mui-selected': {
+                          backgroundColor: theme => note.color && note.color !== 'default'
+                            ? (isDarkMode 
+                              ? `${getNoteBackgroundColor(note.color)}cc`
+                              : `${getNoteBackgroundColor(note.color)}80`)
+                            : theme.palette.action.selected,
+                        },
+                        '&:hover': {
+                          backgroundColor: theme => note.color && note.color !== 'default'
+                            ? (isDarkMode 
+                              ? `${getNoteBackgroundColor(note.color)}99`
+                              : `${getNoteBackgroundColor(note.color)}60`)
+                            : theme.palette.action.hover,
+                        },
+                      }}
+                    >
+                      {isSelectionMode && (
+                        <Checkbox
+                          checked={selectedNotes.includes(note.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() => toggleNoteSelection(note.id)}
+                          edge="start"
+                          sx={{ mr: 1 }}
+                        />
+                      )}
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            {note.isPinned && (
+                              <PinIcon 
+                                sx={{ 
+                                  fontSize: '0.8rem', 
+                                  mr: 1, 
+                                  transform: 'rotate(45deg)',
+                                  color: note.color && note.color !== 'default'
+                                    ? (isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'primary.main')
+                                    : 'primary.main'
+                                }} 
+                              />
+                            )}
+                            <Typography
+                              sx={{
+                                fontWeight: selectedNote === note.id ? 600 : 400,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {note.title}
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={
+                          <React.Fragment>
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              sx={{ display: 'block' }}
+                            >
+                              Modified: {formatDateTime(note.lastModified)}
+                            </Typography>
+                            {note.createdAt && (
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                sx={{ display: 'block' }}
+                              >
+                                Created: {formatDateTime(note.createdAt)}
+                              </Typography>
+                            )}
+                          </React.Fragment>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Collapse>
+          </>
+        )}
       </List>
       <Menu
         anchorEl={menuAnchorEl}
@@ -604,6 +798,34 @@ const Sidebar: React.FC<SidebarProps> = ({
             <>
               <LockIcon sx={{ fontSize: '1.2rem' }} />
               <Typography>Lock note</Typography>
+            </>
+          )}
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (note?.isArchived) {
+              handleUnarchiveNote(activeNoteId!);
+            } else {
+              handleArchiveNote(activeNoteId!);
+            }
+            handleMenuClose();
+          }}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          {notes.find(n => n.id === activeNoteId)?.isArchived ? (
+            <>
+              <UnarchiveIcon sx={{ fontSize: '1.2rem' }} />
+              <Typography>Unarchive note</Typography>
+            </>
+          ) : (
+            <>
+              <ArchiveIcon sx={{ fontSize: '1.2rem' }} />
+              <Typography>Archive note</Typography>
             </>
           )}
         </MenuItem>
