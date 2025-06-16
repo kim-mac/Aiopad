@@ -40,6 +40,8 @@ import {
   Unarchive as UnarchiveIcon,
   ExpandLess as ExpandLessIcon,
   ExpandMore as ExpandMoreIcon,
+  Star as StarIcon,
+  StarBorder as StarBorderIcon,
 } from '@mui/icons-material';
 
 interface Note {
@@ -53,6 +55,7 @@ interface Note {
   password?: string;
   color?: string;
   isArchived?: boolean;
+  isFavorite?: boolean;
 }
 
 interface SidebarProps {
@@ -122,6 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [confirmPassword, setConfirmPassword] = React.useState('');
   const [passwordError, setPasswordError] = React.useState('');
   const [showArchived, setShowArchived] = React.useState(false);
+  const [showFavorites, setShowFavorites] = React.useState(true);
 
   const handleAddNote = () => {
     const newNote: Note = {
@@ -134,6 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       isLocked: false,
       color: 'default',
       isArchived: false,
+      isFavorite: false,
     };
     setNotes([newNote, ...notes]);
     onNoteSelect(newNote.id);
@@ -336,7 +341,16 @@ const Sidebar: React.FC<SidebarProps> = ({
     ));
   };
 
-  const activeNotes = filteredNotes.filter(note => !note.isArchived);
+  const handleToggleFavorite = (noteId: string) => {
+    setNotes(notes.map(note =>
+      note.id === noteId
+        ? { ...note, isFavorite: !note.isFavorite, lastModified: new Date() }
+        : note
+    ));
+  };
+
+  const favoriteNotes = filteredNotes.filter(note => note.isFavorite && !note.isArchived);
+  const activeNotes = filteredNotes.filter(note => !note.isFavorite && !note.isArchived);
   const archivedNotes = filteredNotes.filter(note => note.isArchived);
 
   return (
@@ -438,6 +452,167 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
       <Divider />
       <List sx={{ flex: 1, overflow: 'auto' }}>
+        {favoriteNotes.length > 0 && (
+          <>
+            <ListItem
+              button
+              onClick={() => setShowFavorites(!showFavorites)}
+              sx={{
+                borderBottom: 1,
+                borderColor: 'divider',
+              }}
+            >
+              <ListItemText
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <StarIcon sx={{ fontSize: '1.2rem', color: 'warning.main' }} />
+                    <Typography variant="subtitle2" sx={{ color: 'warning.main' }}>
+                      Favorites
+                    </Typography>
+                  </Box>
+                }
+              />
+              {showFavorites ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </ListItem>
+            <Collapse in={showFavorites} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {favoriteNotes.map((note) => (
+                  <ListItem
+                    key={note.id}
+                    disablePadding
+                    sx={{
+                      backgroundColor: getNoteBackgroundColor(note.color),
+                      transition: 'background-color 0.2s',
+                      '& .MuiTypography-root': {
+                        color: getTextColor(note.color),
+                      },
+                      '& .MuiTypography-colorTextSecondary': {
+                        color: theme => note.color && note.color !== 'default'
+                          ? (isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.6)')
+                          : theme.palette.text.secondary,
+                      },
+                    }}
+                    secondaryAction={
+                      !isSelectionMode && (
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          {note.isLocked && (
+                            <LockIcon 
+                              sx={{ 
+                                fontSize: '1rem',
+                                opacity: 0.5,
+                                mr: 1,
+                                color: note.color && note.color !== 'default'
+                                  ? (isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'primary.main')
+                                  : 'primary.main'
+                              }} 
+                            />
+                          )}
+                          <IconButton
+                            edge="end"
+                            onClick={(e) => handleMenuOpen(e, note.id)}
+                            sx={{ 
+                              opacity: 0.5,
+                              color: note.color && note.color !== 'default'
+                                ? getTextColor(note.color)
+                                : 'inherit'
+                            }}
+                          >
+                            <MoreVertIcon />
+                          </IconButton>
+                        </Box>
+                      )
+                    }
+                  >
+                    <ListItemButton
+                      selected={selectedNote === note.id}
+                      onClick={() =>
+                        isSelectionMode
+                          ? toggleNoteSelection(note.id)
+                          : onNoteSelect(note.id)
+                      }
+                      sx={{ 
+                        pr: isSelectionMode ? 2 : 7,
+                        '&.Mui-selected': {
+                          backgroundColor: theme => note.color && note.color !== 'default'
+                            ? (isDarkMode 
+                              ? `${getNoteBackgroundColor(note.color)}cc`
+                              : `${getNoteBackgroundColor(note.color)}80`)
+                            : theme.palette.action.selected,
+                        },
+                        '&:hover': {
+                          backgroundColor: theme => note.color && note.color !== 'default'
+                            ? (isDarkMode 
+                              ? `${getNoteBackgroundColor(note.color)}99`
+                              : `${getNoteBackgroundColor(note.color)}60`)
+                            : theme.palette.action.hover,
+                        },
+                      }}
+                    >
+                      {isSelectionMode && (
+                        <Checkbox
+                          checked={selectedNotes.includes(note.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() => toggleNoteSelection(note.id)}
+                          edge="start"
+                          sx={{ mr: 1 }}
+                        />
+                      )}
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            {note.isPinned && (
+                              <PinIcon 
+                                sx={{ 
+                                  fontSize: '0.8rem', 
+                                  mr: 1, 
+                                  transform: 'rotate(45deg)',
+                                  color: note.color && note.color !== 'default'
+                                    ? (isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'primary.main')
+                                    : 'primary.main'
+                                }} 
+                              />
+                            )}
+                            <Typography
+                              sx={{
+                                fontWeight: selectedNote === note.id ? 600 : 400,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {note.title}
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={
+                          <React.Fragment>
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              sx={{ display: 'block' }}
+                            >
+                              Modified: {formatDateTime(note.lastModified)}
+                            </Typography>
+                            {note.createdAt && (
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                sx={{ display: 'block' }}
+                              >
+                                Created: {formatDateTime(note.createdAt)}
+                              </Typography>
+                            )}
+                          </React.Fragment>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Collapse>
+          </>
+        )}
+
         {activeNotes.map((note) => (
           <ListItem
             key={note.id}
@@ -762,6 +937,31 @@ const Sidebar: React.FC<SidebarProps> = ({
           <Typography>
             {notes.find(n => n.id === activeNoteId)?.isPinned ? 'Unpin note' : 'Pin note'}
           </Typography>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (activeNoteId) {
+              handleToggleFavorite(activeNoteId);
+              handleMenuClose();
+            }
+          }}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          {notes.find(n => n.id === activeNoteId)?.isFavorite ? (
+            <>
+              <StarIcon sx={{ fontSize: '1.2rem', color: 'warning.main' }} />
+              <Typography>Remove from favorites</Typography>
+            </>
+          ) : (
+            <>
+              <StarBorderIcon sx={{ fontSize: '1.2rem', color: 'warning.main' }} />
+              <Typography>Add to favorites</Typography>
+            </>
+          )}
         </MenuItem>
         <MenuItem
           onClick={handleColorMenuOpen}
