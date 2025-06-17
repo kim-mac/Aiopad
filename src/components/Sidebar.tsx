@@ -218,22 +218,22 @@ const Sidebar: React.FC<SidebarProps> = ({
     
     // Sort each group separately
     const sortGroup = (notes: Note[]) => {
-      switch (sortBy) {
-        case 'modified-desc':
+    switch (sortBy) {
+      case 'modified-desc':
           return notes.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
-        case 'modified-asc':
+      case 'modified-asc':
           return notes.sort((a, b) => a.lastModified.getTime() - b.lastModified.getTime());
-        case 'created-desc':
+      case 'created-desc':
           return notes.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
-        case 'created-asc':
+      case 'created-asc':
           return notes.sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
-        case 'title-asc':
+      case 'title-asc':
           return notes.sort((a, b) => a.title.localeCompare(b.title));
-        case 'title-desc':
+      case 'title-desc':
           return notes.sort((a, b) => b.title.localeCompare(a.title));
-        default:
+      default:
           return notes;
-      }
+    }
     };
 
     // Return concatenated sorted groups with pinned notes first
@@ -644,8 +644,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                       }} 
                     />
                   )}
-                  <IconButton
-                    edge="end"
+                <IconButton
+                  edge="end"
                     onClick={(e) => handleMenuOpen(e, note.id)}
                     sx={{ 
                       opacity: 0.5,
@@ -655,7 +655,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     }}
                   >
                     <MoreVertIcon />
-                  </IconButton>
+                </IconButton>
                 </Box>
               )
             }

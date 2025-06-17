@@ -41,10 +41,13 @@ import {
   Autorenew,
   SmartToy,
   Face,
+  Close as CloseIcon,
+  DragIndicator,
 } from '@mui/icons-material';
 import { ThemeVariant, ColorMode } from '../themes';
 import Keyboard from './Keyboard';
 import SaveMenu from './SaveMenu';
+import Draggable from 'react-draggable';
 import { getSuggestions, summarizeText, improveWriting, paraphraseText, detectAIText, humanizeText, AIDetectionResult } from '../utils/ai';
 
 interface ToolbarProps {
@@ -72,11 +75,13 @@ const FONT_FAMILIES = [
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
 
-const Calculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const FloatingCalculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [display, setDisplay] = React.useState('0');
   const [memory, setMemory] = React.useState<string | null>(null);
   const [operator, setOperator] = React.useState<string | null>(null);
   const [waitingForOperand, setWaitingForOperand] = React.useState(false);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [calculatorScale, setCalculatorScale] = React.useState(1);
 
   const handleNumber = (num: string) => {
     if (waitingForOperand) {
@@ -168,108 +173,227 @@ const Calculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }
   };
 
+  const handleResizeStart = (e: React.MouseEvent) => {
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startScale = calculatorScale;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      const newScale = startScale + Math.max(deltaX, deltaY) / 200;
+      setCalculatorScale(Math.max(0.5, Math.min(2, newScale)));
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const commonButtonStyle = {
+    minWidth: 'auto',
+    width: 40 * calculatorScale,
+    height: 40 * calculatorScale,
+    m: 0.05,
+    p: 0.5,
+    borderRadius: 1,
+    fontFamily: 'inherit',
+    fontSize: 14 * calculatorScale,
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    '&:active': {
+      transform: 'translateY(1px)',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+    },
+  };
+
+  const getButtonStyle = (type: 'number' | 'operator' | 'function' | 'equals') => {
+    const baseStyle = {
+      ...commonButtonStyle,
+      color: 'white',
+      fontWeight: 500,
+    };
+
+    switch (type) {
+      case 'number':
+        return {
+          ...baseStyle,
+          background: 'linear-gradient(145deg, #2c2c2c, #1a1a1a)',
+          '&:hover': {
+            background: 'linear-gradient(145deg, #333333, #222222)',
+          },
+        };
+      case 'operator':
+        return {
+          ...baseStyle,
+          background: 'linear-gradient(145deg, #ff9500, #ff8000)',
+          '&:hover': {
+            background: 'linear-gradient(145deg, #ffa533, #ff9500)',
+          },
+        };
+      case 'function':
+        return {
+          ...baseStyle,
+          background: 'linear-gradient(145deg, #a5a5a5, #8a8a8a)',
+          '&:hover': {
+            background: 'linear-gradient(145deg, #b5b5b5, #9a9a9a)',
+          },
+        };
+      case 'equals':
+        return {
+          ...baseStyle,
+          background: 'linear-gradient(145deg, #ff9500, #ff8000)',
+          '&:hover': {
+            background: 'linear-gradient(145deg, #ffa533, #ff9500)',
+          },
+        };
+    }
+  };
+
+  const rowStyle = {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: '6px', // small gap between buttons
+    marginBottom: '8px',
+  };
+  const lastRowStyle = { ...rowStyle, marginBottom: 0 };
+  const tightButtonStyle = {
+    ...getButtonStyle('number'),
+    m: 0,
+    minWidth: 0,
+    flex: 1,
+  };
+
   return (
-    <Box sx={{ width: 280 }}>
+    <Draggable
+      handle=".drag-handle"
+      onStart={() => setIsDragging(true)}
+      onStop={() => setIsDragging(false)}
+    >
       <Paper
+        elevation={8}
         sx={{
-          p: 2,
-          mb: 2,
-          textAlign: 'right',
-          fontSize: '1.5rem',
-          fontFamily: 'monospace',
-          minHeight: 48,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
+          position: 'fixed',
+          zIndex: 1300,
+          backgroundColor: '#1c1c1c',
+          borderRadius: 2,
+          overflow: 'hidden',
+          transform: `scale(${calculatorScale})`,
+          transformOrigin: 'top left',
+          boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
         }}
       >
-        {display}
-      </Paper>
-      <Grid container spacing={1}>
-        <Grid item xs={3}>
-          <Button fullWidth variant="outlined" onClick={handleClear}>
-            C
-          </Button>
-        </Grid>
-        <Grid item xs={3}>
-          <Button fullWidth variant="outlined" onClick={handleBackspace}>
-            <Backspace />
-          </Button>
-        </Grid>
-        <Grid item xs={3}>
-          <Button fullWidth variant="outlined" onClick={() => handleOperator('/')}>
-            ÷
-          </Button>
-        </Grid>
-        <Grid item xs={3}>
-          <Button fullWidth variant="outlined" onClick={() => handleOperator('*')}>
-            ×
-          </Button>
-        </Grid>
-        {[7, 8, 9].map((num) => (
-          <Grid item xs={3} key={num}>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => handleNumber(String(num))}
+        <Box
+          className="drag-handle"
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            p: 1,
+            bgcolor: '#2c2c2c',
+            cursor: 'move',
+            userSelect: 'none',
+            borderBottom: 1,
+            borderColor: 'rgba(255,255,255,0.1)',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DragIndicator sx={{ opacity: 0.5, color: 'white' }} />
+            <Typography variant="subtitle2" sx={{ color: 'white' }}>Calculator</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <IconButton
+              size="small"
+              onClick={onClose}
+              sx={{ 
+                opacity: 0.7, 
+                '&:hover': { opacity: 1 },
+                color: 'white',
+              }}
             >
-              {num}
-            </Button>
-          </Grid>
-        ))}
-        <Grid item xs={3}>
-          <Button fullWidth variant="outlined" onClick={() => handleOperator('-')}>
-            -
-          </Button>
-        </Grid>
-        {[4, 5, 6].map((num) => (
-          <Grid item xs={3} key={num}>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => handleNumber(String(num))}
-            >
-              {num}
-            </Button>
-          </Grid>
-        ))}
-        <Grid item xs={3}>
-          <Button fullWidth variant="outlined" onClick={() => handleOperator('+')}>
-            +
-          </Button>
-        </Grid>
-        {[1, 2, 3].map((num) => (
-          <Grid item xs={3} key={num}>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => handleNumber(String(num))}
-            >
-              {num}
-            </Button>
-          </Grid>
-        ))}
-        <Grid item xs={3}>
-          <Button fullWidth variant="outlined" onClick={handleEqual}>
-            =
-          </Button>
-        </Grid>
-        <Grid item xs={6}>
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={() => handleNumber('0')}
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </Box>
+        <Box sx={{ p: 1, bgcolor: '#1c1c1c' }}>
+          <Paper
+            sx={{
+              p: 2,
+              mb: 1,
+              textAlign: 'right',
+              fontSize: `${1.5 * calculatorScale}rem`,
+              fontFamily: 'monospace',
+              minHeight: 48 * calculatorScale,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              bgcolor: '#2c2c2c',
+              color: 'white',
+              borderRadius: 1,
+              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)',
+            }}
           >
-            0
-          </Button>
-        </Grid>
-        <Grid item xs={3}>
-          <Button fullWidth variant="outlined" onClick={handleDecimal}>
-            .
-          </Button>
-        </Grid>
-      </Grid>
-    </Box>
+            {display}
+          </Paper>
+          <Box sx={rowStyle}>
+            <Button onClick={() => !isDragging && handleClear()} sx={{ ...getButtonStyle('function'), m: 0, flex: 1 }}>C</Button>
+            <Button onClick={() => !isDragging && handleBackspace()} sx={{ ...getButtonStyle('function'), m: 0, flex: 1 }}><Backspace sx={{ fontSize: 18 * calculatorScale }} /></Button>
+            <Button onClick={() => !isDragging && handleOperator('/')} sx={{ ...getButtonStyle('operator'), m: 0, flex: 1 }}>÷</Button>
+            <Button onClick={() => !isDragging && handleOperator('*')} sx={{ ...getButtonStyle('operator'), m: 0, flex: 1 }}>×</Button>
+          </Box>
+          <Box sx={rowStyle}>
+            <Button onClick={() => !isDragging && handleNumber('7')} sx={tightButtonStyle}>7</Button>
+            <Button onClick={() => !isDragging && handleNumber('8')} sx={tightButtonStyle}>8</Button>
+            <Button onClick={() => !isDragging && handleNumber('9')} sx={tightButtonStyle}>9</Button>
+            <Button onClick={() => !isDragging && handleOperator('-')} sx={{ ...getButtonStyle('operator'), m: 0, flex: 1 }}>-</Button>
+          </Box>
+          <Box sx={rowStyle}>
+            <Button onClick={() => !isDragging && handleNumber('4')} sx={tightButtonStyle}>4</Button>
+            <Button onClick={() => !isDragging && handleNumber('5')} sx={tightButtonStyle}>5</Button>
+            <Button onClick={() => !isDragging && handleNumber('6')} sx={tightButtonStyle}>6</Button>
+            <Button onClick={() => !isDragging && handleOperator('+')} sx={{ ...getButtonStyle('operator'), m: 0, flex: 1 }}>+</Button>
+          </Box>
+          <Box sx={rowStyle}>
+            <Button onClick={() => !isDragging && handleNumber('1')} sx={tightButtonStyle}>1</Button>
+            <Button onClick={() => !isDragging && handleNumber('2')} sx={tightButtonStyle}>2</Button>
+            <Button onClick={() => !isDragging && handleNumber('3')} sx={tightButtonStyle}>3</Button>
+            <Button onClick={() => !isDragging && handleEqual()} sx={{ ...getButtonStyle('equals'), m: 0, flex: 1, height: '100%' }}>=</Button>
+          </Box>
+          <Box sx={lastRowStyle}>
+            <Button onClick={() => !isDragging && handleNumber('0')} sx={{ ...tightButtonStyle, flex: 2 }}>0</Button>
+            <Button onClick={() => !isDragging && handleDecimal()} sx={tightButtonStyle}>.</Button>
+          </Box>
+          <Box
+            sx={{
+              position: 'absolute',
+              right: 0,
+              bottom: 0,
+              width: 20,
+              height: 20,
+              cursor: 'se-resize',
+              opacity: 0.5,
+              '&:hover': { opacity: 1 },
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                right: 2,
+                bottom: 2,
+                width: 0,
+                height: 0,
+                borderStyle: 'solid',
+                borderWidth: '0 0 10px 10px',
+                borderColor: 'rgba(255,255,255,0.5) transparent transparent transparent',
+              },
+            }}
+            onMouseDown={handleResizeStart}
+          />
+        </Box>
+      </Paper>
+    </Draggable>
   );
 };
 
@@ -733,14 +857,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   return (
     <>
-      <Box sx={{ 
-        p: 0.5, 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 1,
-        minHeight: 40,
-        position: 'relative',
-      }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          p: 1,
+          borderBottom: 1,
+          borderColor: 'divider',
+          position: 'relative',
+        }}
+      >
         <Tooltip title={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}>
           <IconButton 
             onClick={onSidebarToggle}
@@ -830,18 +957,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
         )}
       </Box>
 
-      <Dialog
-        open={calculatorOpen}
-        onClose={() => setCalculatorOpen(false)}
-        PaperProps={{
-          sx: { borderRadius: 2 }
-        }}
-      >
-        <DialogTitle>Calculator</DialogTitle>
-        <DialogContent>
-          <Calculator onClose={() => setCalculatorOpen(false)} />
-        </DialogContent>
-      </Dialog>
+      {calculatorOpen && (
+        <FloatingCalculator onClose={() => setCalculatorOpen(false)} />
+      )}
 
       {keyboardOpen && (
         <Keyboard
