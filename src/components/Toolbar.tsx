@@ -454,11 +454,61 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiDetectionResult, setAiDetectionResult] = useState<AIDetectionResult | null>(null);
   const [aiDetectionDialogOpen, setAiDetectionDialogOpen] = useState(false);
+  const [isUndoRedoAction, setIsUndoRedoAction] = useState(false);
+  const isInitialized = React.useRef(false);
+  const previousContent = React.useRef<string>('');
 
+  // Initialize undo stack with current content only once
   useEffect(() => {
-    setUndoStack(prev => [...prev, content]);
-    setRedoStack([]);
+    if (!isInitialized.current && content !== '') {
+      setUndoStack([content]);
+      previousContent.current = content;
+      isInitialized.current = true;
+    }
   }, [content]);
+
+  // Handle content changes and update undo stack
+  useEffect(() => {
+    if (!isUndoRedoAction && content !== '' && isInitialized.current) {
+      // Only add to undo stack if content actually changed (not during undo/redo)
+      if (previousContent.current !== content) {
+        setUndoStack(prev => {
+          // Don't add duplicate content
+          if (prev.length > 0 && prev[prev.length - 1] === content) {
+            return prev;
+          }
+          const newStack = [...prev, content];
+          // Limit undo stack to 50 items to prevent memory issues
+          return newStack.slice(-50);
+        });
+        // Only clear redo stack when there's a new content change
+        setRedoStack([]);
+        previousContent.current = content;
+      }
+    } else if (isUndoRedoAction) {
+      // Update previous content during undo/redo operations
+      previousContent.current = content;
+    }
+    setIsUndoRedoAction(false);
+  }, [content, isUndoRedoAction]);
+
+  // Add keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+        if (event.key === 'z') {
+          event.preventDefault();
+          handleUndo();
+        } else if (event.key === 'y') {
+          event.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []); // Empty dependency array since handleUndo and handleRedo are stable
 
   React.useEffect(() => {
     onFontChange(fontFamily, fontSize);
@@ -474,8 +524,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
       const currentState = newUndoStack.pop()!;
       const previousState = newUndoStack[newUndoStack.length - 1];
       
+      setIsUndoRedoAction(true);
       setUndoStack(newUndoStack);
-      setRedoStack(prev => [...prev, currentState]);
+      setRedoStack(prev => {
+        const newRedoStack = [...prev, currentState];
+        // Limit redo stack to 50 items
+        return newRedoStack.slice(-50);
+      });
       setContent(previousState);
     }
   };
@@ -485,8 +540,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
       const newRedoStack = [...redoStack];
       const nextState = newRedoStack.pop()!;
       
+      setIsUndoRedoAction(true);
       setRedoStack(newRedoStack);
-      setUndoStack(prev => [...prev, nextState]);
+      setUndoStack(prev => {
+        const newUndoStack = [...prev, nextState];
+        // Limit undo stack to 50 items
+        return newUndoStack.slice(-50);
+      });
       setContent(nextState);
     }
   };
@@ -782,40 +842,50 @@ const Toolbar: React.FC<ToolbarProps> = ({
     {
       title: 'Clipboard',
       tools: [
-        { icon: <ContentCopy />, action: handleCopy, tooltip: 'Copy (Ctrl+C)' },
-        { icon: <ContentPaste />, action: handlePaste, tooltip: 'Paste (Ctrl+V)' },
-        { icon: <ContentCut />, action: handleCut, tooltip: 'Cut (Ctrl+X)' },
+        { icon: <ContentCopy />, action: handleCopy, tooltip: 'Copy (Ctrl+C)', disabled: false },
+        { icon: <ContentPaste />, action: handlePaste, tooltip: 'Paste (Ctrl+V)', disabled: false },
+        { icon: <ContentCut />, action: handleCut, tooltip: 'Cut (Ctrl+X)', disabled: false },
       ],
     },
     {
       title: 'History',
       tools: [
-        { icon: <Undo />, action: handleUndo, tooltip: 'Undo (Ctrl+Z)' },
-        { icon: <Redo />, action: handleRedo, tooltip: 'Redo (Ctrl+Y)' },
+        { 
+          icon: <Undo />, 
+          action: handleUndo, 
+          tooltip: 'Undo (Ctrl+Z)',
+          disabled: undoStack.length <= 1
+        },
+        { 
+          icon: <Redo />, 
+          action: handleRedo, 
+          tooltip: 'Redo (Ctrl+Y)',
+          disabled: redoStack.length === 0
+        },
       ],
     },
     {
       title: 'Formatting',
       tools: [
-        { icon: <FormatBold />, action: () => handleFormat('bold'), tooltip: 'Bold (Ctrl+B)' },
-        { icon: <FormatItalic />, action: () => handleFormat('italic'), tooltip: 'Italic (Ctrl+I)' },
-        { icon: <FormatUnderlined />, action: () => handleFormat('underline'), tooltip: 'Underline (Ctrl+U)' },
+        { icon: <FormatBold />, action: () => handleFormat('bold'), tooltip: 'Bold (Ctrl+B)', disabled: false },
+        { icon: <FormatItalic />, action: () => handleFormat('italic'), tooltip: 'Italic (Ctrl+I)', disabled: false },
+        { icon: <FormatUnderlined />, action: () => handleFormat('underline'), tooltip: 'Underline (Ctrl+U)', disabled: false },
       ],
     },
     {
       title: 'Lists',
       tools: [
-        { icon: <FormatListBulleted />, action: () => {}, tooltip: 'Bullet List' },
-        { icon: <FormatListNumbered />, action: () => {}, tooltip: 'Numbered List' },
+        { icon: <FormatListBulleted />, action: () => {}, tooltip: 'Bullet List', disabled: false },
+        { icon: <FormatListNumbered />, action: () => {}, tooltip: 'Numbered List', disabled: false },
       ],
     },
     {
       title: 'File',
       tools: [
-        { icon: <SaveAlt />, action: handleSaveClick, tooltip: 'Save As... (Ctrl+S)' },
-        { icon: <Share />, action: () => {}, tooltip: 'Share' },
-        { icon: <Calculate />, action: () => setCalculatorOpen(true), tooltip: 'Calculator' },
-        { icon: <KeyboardIcon />, action: () => setKeyboardOpen(true), tooltip: 'On-screen Keyboard' },
+        { icon: <SaveAlt />, action: handleSaveClick, tooltip: 'Save As... (Ctrl+S)', disabled: false },
+        { icon: <Share />, action: () => {}, tooltip: 'Share', disabled: false },
+        { icon: <Calculate />, action: () => setCalculatorOpen(true), tooltip: 'Calculator', disabled: false },
+        { icon: <KeyboardIcon />, action: () => setKeyboardOpen(true), tooltip: 'On-screen Keyboard', disabled: false },
       ],
     },
     {
@@ -824,32 +894,38 @@ const Toolbar: React.FC<ToolbarProps> = ({
         { 
           icon: <AutoFixHigh />, 
           action: handleImproveWriting, 
-          tooltip: 'Improve Writing (Select text first)' 
+          tooltip: 'Improve Writing (Select text first)',
+          disabled: false
         },
         { 
           icon: <Autorenew />, 
           action: handleParaphrase, 
-          tooltip: 'Paraphrase (Select text first)' 
+          tooltip: 'Paraphrase (Select text first)',
+          disabled: false
         },
         { 
           icon: <Summarize />, 
           action: handleSummarize, 
-          tooltip: 'Summarize (Select text first)' 
+          tooltip: 'Summarize (Select text first)',
+          disabled: false
         },
         { 
           icon: <Psychology />, 
           action: handleAutoComplete, 
-          tooltip: 'AI Complete' 
+          tooltip: 'AI Complete',
+          disabled: false
         },
         { 
           icon: <SmartToy />, 
           action: handleAIDetection, 
-          tooltip: 'Detect AI Text (Select text first)' 
+          tooltip: 'Detect AI Text (Select text first)',
+          disabled: false
         },
         { 
           icon: <Face />, 
           action: handleHumanize, 
-          tooltip: 'Humanize Text (Select text first)' 
+          tooltip: 'Humanize Text (Select text first)',
+          disabled: false
         },
       ],
     },
@@ -888,10 +964,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 <Tooltip key={tool.tooltip} title={tool.tooltip}>
                   <IconButton
                     onClick={tool.action}
+                    disabled={tool.disabled}
                     size="small"
                     sx={{
-                      color: 'text.secondary',
-                      '&:hover': { color: 'text.primary' },
+                      color: tool.disabled ? 'text.disabled' : 'text.secondary',
+                      '&:hover': { 
+                        color: tool.disabled ? 'text.disabled' : 'text.primary' 
+                      },
                     }}
                   >
                     {tool.icon}
