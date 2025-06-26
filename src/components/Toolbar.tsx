@@ -16,6 +16,8 @@ import {
   Typography,
   Paper,
   CircularProgress,
+  Popover,
+  TextField,
 } from '@mui/material';
 import {
   FormatBold,
@@ -43,6 +45,7 @@ import {
   Face,
   Close as CloseIcon,
   DragIndicator,
+  CalendarToday,
 } from '@mui/icons-material';
 import { ThemeVariant, ColorMode } from '../themes';
 import Keyboard from './Keyboard';
@@ -408,16 +411,16 @@ const AIDetectionDialog: React.FC<AIDetectionDialogProps> = ({
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>AI Text Detection Results</DialogTitle>
       <DialogContent>
-        <Box sx={{ mt: 2 }}>
+        <Box sx={{ mb: 2 }}>
           <Typography variant="h6" color={detectionResult.isAIGenerated ? "error" : "success"}>
             {detectionResult.isAIGenerated ? "Likely AI Generated" : "Likely Human Written"}
           </Typography>
-          <Typography variant="body1" sx={{ mt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
             Confidence: {Math.round(detectionResult.confidence * 100)}%
           </Typography>
-          <Typography variant="h6" sx={{ mt: 2 }}>
-            Indicators:
-          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>Indicators:</Typography>
           <Box component="ul" sx={{ mt: 1 }}>
             {detectionResult.indicators.map((indicator, index) => (
               <Typography component="li" key={index}>
@@ -427,12 +430,137 @@ const AIDetectionDialog: React.FC<AIDetectionDialogProps> = ({
           </Box>
         </Box>
       </DialogContent>
-      <Box sx={{ p: 2 }}>
-        <Button variant="contained" onClick={onClose} fullWidth>
-          Close
-        </Button>
-      </Box>
     </Dialog>
+  );
+};
+
+const Calendar: React.FC<{
+  open: boolean;
+  anchorEl: HTMLElement | null;
+  onClose: () => void;
+  onDateSelect: (date: Date) => void;
+}> = ({ open, anchorEl, onClose, onDateSelect }) => {
+  const [currentDate, setCurrentDate] = React.useState(new Date());
+  const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    return { daysInMonth, startingDay };
+  };
+
+  const getMonthName = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const handleDateClick = (day: number) => {
+    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    setSelectedDate(newDate);
+    onDateSelect(newDate);
+    onClose();
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  const { daysInMonth, startingDay } = getDaysInMonth(currentDate);
+  const days: React.ReactNode[] = [];
+  
+  // Add empty cells for days before the first day of the month
+  for (let i = 0; i < startingDay; i++) {
+    days.push(<Box key={`empty-${i}`} sx={{ p: 1, textAlign: 'center' }} />);
+  }
+  
+  // Add cells for each day of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
+    const isSelected = selectedDate && selectedDate.toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
+    
+    days.push(
+      <Box
+        key={day}
+        onClick={() => handleDateClick(day)}
+        sx={{
+          p: 1,
+          textAlign: 'center',
+          cursor: 'pointer',
+          borderRadius: 1,
+          backgroundColor: isSelected ? 'primary.main' : isToday ? 'action.hover' : 'transparent',
+          color: isSelected ? 'primary.contrastText' : 'text.primary',
+          '&:hover': {
+            backgroundColor: isSelected ? 'primary.dark' : 'action.hover',
+          },
+          fontWeight: isToday ? 'bold' : 'normal',
+        }}
+      >
+        {day}
+      </Box>
+    );
+  }
+
+  return (
+    <Popover
+      open={open}
+      anchorEl={anchorEl}
+      onClose={onClose}
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'left',
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'left',
+      }}
+    >
+      <Paper sx={{ p: 2, minWidth: 280 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <IconButton onClick={handlePrevMonth} size="small">
+            <ChevronLeft />
+          </IconButton>
+          <Typography variant="h6">{getMonthName(currentDate)}</Typography>
+          <IconButton onClick={handleNextMonth} size="small">
+            <ChevronLeft sx={{ transform: 'rotate(180deg)' }} />
+          </IconButton>
+        </Box>
+        
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, mb: 1 }}>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <Box key={day} sx={{ p: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '0.875rem' }}>
+              {day}
+            </Box>
+          ))}
+        </Box>
+        
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
+          {days}
+        </Box>
+        
+        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={() => {
+              const today = new Date();
+              setSelectedDate(today);
+              onDateSelect(today);
+              onClose();
+            }}
+          >
+            Today
+          </Button>
+        </Box>
+      </Paper>
+    </Popover>
   );
 };
 
@@ -457,6 +585,14 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const [isUndoRedoAction, setIsUndoRedoAction] = useState(false);
   const isInitialized = React.useRef(false);
   const previousContent = React.useRef<string>('');
+  const [activeFormatting, setActiveFormatting] = useState<{
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+  }>({ bold: false, italic: false, underline: false });
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarAnchor, setCalendarAnchor] = useState<null | HTMLElement>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // Initialize undo stack with current content only once
   useEffect(() => {
@@ -492,7 +628,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
     setIsUndoRedoAction(false);
   }, [content, isUndoRedoAction]);
 
-  // Add keyboard shortcuts for undo/redo
+  // Add keyboard shortcuts for undo/redo and formatting
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
@@ -502,13 +638,22 @@ const Toolbar: React.FC<ToolbarProps> = ({
         } else if (event.key === 'y') {
           event.preventDefault();
           handleRedo();
+        } else if (event.key === 'b') {
+          event.preventDefault();
+          handleFormat('bold');
+        } else if (event.key === 'i') {
+          event.preventDefault();
+          handleFormat('italic');
+        } else if (event.key === 'u') {
+          event.preventDefault();
+          handleFormat('underline');
         }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []); // Empty dependency array since handleUndo and handleRedo are stable
+  }, []); // Empty dependency array since handleUndo, handleRedo, and handleFormat are stable
 
   React.useEffect(() => {
     onFontChange(fontFamily, fontSize);
@@ -552,7 +697,73 @@ const Toolbar: React.FC<ToolbarProps> = ({
   };
 
   const handleFormat = (format: string) => {
-    // Implementation of handleFormat
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = content.substring(start, end);
+      
+      if (selectedText) {
+        let formattedText = '';
+        let newCursorPosition = start;
+        
+        switch (format) {
+          case 'bold':
+            formattedText = `**${selectedText}**`;
+            newCursorPosition = start + formattedText.length;
+            break;
+          case 'italic':
+            formattedText = `*${selectedText}*`;
+            newCursorPosition = start + formattedText.length;
+            break;
+          case 'underline':
+            formattedText = `__${selectedText}__`;
+            newCursorPosition = start + formattedText.length;
+            break;
+          default:
+            return;
+        }
+        
+        const newContent = content.slice(0, start) + formattedText + content.slice(end);
+        setContent(newContent);
+        
+        // Set cursor position after the formatted text
+        setTimeout(() => {
+          textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+          textarea.focus();
+        }, 0);
+      } else {
+        // If no text is selected, insert formatting markers and place cursor between them
+        let markers = '';
+        let cursorOffset = 0;
+        
+        switch (format) {
+          case 'bold':
+            markers = '****';
+            cursorOffset = 2;
+            break;
+          case 'italic':
+            markers = '**';
+            cursorOffset = 1;
+            break;
+          case 'underline':
+            markers = '____';
+            cursorOffset = 2;
+            break;
+          default:
+            return;
+        }
+        
+        const newContent = content.slice(0, start) + markers + content.slice(end);
+        setContent(newContent);
+        
+        // Place cursor between the formatting markers
+        setTimeout(() => {
+          textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
+          textarea.focus();
+        }, 0);
+      }
+    }
   };
 
   const handleCopy = () => {
@@ -838,6 +1049,78 @@ const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
+  const handleListFormat = (listType: 'bullet' | 'numbered') => {
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = content.substring(start, end);
+      
+      if (selectedText) {
+        // Split selected text into lines and format each line
+        const lines = selectedText.split('\n');
+        const formattedLines = lines.map((line, index) => {
+          const trimmedLine = line.trim();
+          if (trimmedLine === '') return line;
+          
+          if (listType === 'bullet') {
+            return line.replace(/^\s*/, '• ');
+          } else {
+            return line.replace(/^\s*/, `${index + 1}. `);
+          }
+        });
+        
+        const formattedText = formattedLines.join('\n');
+        const newContent = content.slice(0, start) + formattedText + content.slice(end);
+        setContent(newContent);
+        
+        // Set cursor position after the formatted text
+        setTimeout(() => {
+          textarea.setSelectionRange(start + formattedText.length, start + formattedText.length);
+          textarea.focus();
+        }, 0);
+      } else {
+        // If no text is selected, insert a list item at cursor position
+        const listMarker = listType === 'bullet' ? '• ' : '1. ';
+        const newContent = content.slice(0, start) + listMarker + content.slice(end);
+        setContent(newContent);
+        
+        // Place cursor after the list marker
+        setTimeout(() => {
+          textarea.setSelectionRange(start + listMarker.length, start + listMarker.length);
+          textarea.focus();
+        }, 0);
+      }
+    }
+  };
+
+  const handleCalendarClick = (event: React.MouseEvent<HTMLElement>) => {
+    setCalendarAnchor(event.currentTarget);
+    setCalendarOpen(true);
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const dateString = date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      const newContent = content.slice(0, start) + dateString + content.slice(end);
+      setContent(newContent);
+      
+      setTimeout(() => {
+        textarea.setSelectionRange(start + dateString.length, start + dateString.length);
+        textarea.focus();
+      }, 0);
+    }
+  };
+
   const toolbarGroups = [
     {
       title: 'Clipboard',
@@ -875,8 +1158,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
     {
       title: 'Lists',
       tools: [
-        { icon: <FormatListBulleted />, action: () => {}, tooltip: 'Bullet List', disabled: false },
-        { icon: <FormatListNumbered />, action: () => {}, tooltip: 'Numbered List', disabled: false },
+        { icon: <FormatListBulleted />, action: () => handleListFormat('bullet'), tooltip: 'Bullet List', disabled: false },
+        { icon: <FormatListNumbered />, action: () => handleListFormat('numbered'), tooltip: 'Numbered List', disabled: false },
       ],
     },
     {
@@ -886,6 +1169,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         { icon: <Share />, action: () => {}, tooltip: 'Share', disabled: false },
         { icon: <Calculate />, action: () => setCalculatorOpen(true), tooltip: 'Calculator', disabled: false },
         { icon: <KeyboardIcon />, action: () => setKeyboardOpen(true), tooltip: 'On-screen Keyboard', disabled: false },
+        { icon: <CalendarToday />, action: handleCalendarClick, tooltip: 'Calendar', disabled: false },
       ],
     },
     {
@@ -1059,6 +1343,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
         open={aiDetectionDialogOpen}
         onClose={() => setAiDetectionDialogOpen(false)}
         detectionResult={aiDetectionResult}
+      />
+
+      <Calendar
+        open={calendarOpen}
+        anchorEl={calendarAnchor}
+        onClose={() => setCalendarOpen(false)}
+        onDateSelect={handleDateSelect}
       />
     </>
   );
