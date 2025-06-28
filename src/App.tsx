@@ -16,6 +16,14 @@ interface Note {
   isLocked?: boolean;
   password?: string;
   color?: string;
+  isArchived?: boolean;
+  isFavorite?: boolean;
+  type?: 'note' | 'todo';
+  tasks?: Array<{
+    id: string;
+    text: string;
+    completed: boolean;
+  }>;
 }
 
 function App() {

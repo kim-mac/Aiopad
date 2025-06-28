@@ -1,6 +1,28 @@
 import React from 'react';
-import { Box, Typography, useTheme, TextField, CircularProgress, Tooltip, Paper, Chip } from '@mui/material';
-import { Speed as SpeedIcon, Timer, EmojiEvents } from '@mui/icons-material';
+import { 
+  Box, 
+  Typography, 
+  useTheme, 
+  TextField, 
+  CircularProgress, 
+  Tooltip, 
+  Paper, 
+  Chip,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Checkbox,
+  IconButton,
+  Button,
+} from '@mui/material';
+import { 
+  Speed as SpeedIcon, 
+  Timer, 
+  EmojiEvents,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
 import Toolbar from './Toolbar';
 
 interface Note {
@@ -8,6 +30,12 @@ interface Note {
   title: string;
   content: string;
   lastModified: Date;
+  type?: 'note' | 'todo';
+  tasks?: Array<{
+    id: string;
+    text: string;
+    completed: boolean;
+  }>;
 }
 
 interface EditorProps {
@@ -60,6 +88,53 @@ const Editor: React.FC<EditorProps> = ({
 
   const getCharacterCount = (text: string) => {
     return text.length;
+  };
+
+  const handleTaskToggle = (taskId: string) => {
+    if (!note?.tasks) return;
+    
+    const updatedTasks = note.tasks.map(task =>
+      task.id === taskId ? { ...task, completed: !task.completed } : task
+    );
+    
+    onNoteChange({ tasks: updatedTasks });
+  };
+
+  const handleTaskTextChange = (taskId: string, newText: string) => {
+    if (!note?.tasks) return;
+    
+    const updatedTasks = note.tasks.map(task =>
+      task.id === taskId ? { ...task, text: newText } : task
+    );
+    
+    onNoteChange({ tasks: updatedTasks });
+  };
+
+  const handleAddTask = () => {
+    if (!note?.tasks) return;
+    
+    const newTask = {
+      id: Date.now().toString(),
+      text: 'New task',
+      completed: false,
+    };
+    
+    onNoteChange({ tasks: [...note.tasks, newTask] });
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    if (!note?.tasks) return;
+    
+    const updatedTasks = note.tasks.filter(task => task.id !== taskId);
+    onNoteChange({ tasks: updatedTasks });
+  };
+
+  const getCompletedTaskCount = () => {
+    return note?.tasks?.filter(task => task.completed).length || 0;
+  };
+
+  const getTotalTaskCount = () => {
+    return note?.tasks?.length || 0;
   };
 
   const formatTime = (seconds: number): string => {
@@ -269,37 +344,118 @@ const Editor: React.FC<EditorProps> = ({
             noteTitle={note.title}
           />
         </Box>
-        <Box
-          component="textarea"
-          value={note.content}
-          onChange={(e) => {
-            const newContent = e.target.value;
-            onNoteChange({ content: newContent });
-            updateTypingSpeed(newContent, note.content);
-          }}
-          sx={{
-            flex: 1,
-            resize: 'none',
-            border: 'none',
-            outline: 'none',
-            p: 2,
-            fontSize: fontSize,
-            lineHeight: 1.6,
-            letterSpacing: '-0.01em',
-            fontFamily: fontFamily,
-            backgroundColor: 'background.paper',
-            color: 'text.primary',
-            borderRadius: 2,
-            boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-            transition: 'all 0.2s ease-in-out',
-            '&:focus': {
+        
+        {note.type === 'todo' ? (
+          <Box
+            sx={{
+              flex: 1,
+              backgroundColor: 'background.paper',
+              borderRadius: 2,
+              boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
+              overflow: 'hidden',
+            }}
+          >
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+              <Button
+                startIcon={<AddIcon />}
+                onClick={handleAddTask}
+                variant="outlined"
+                size="small"
+              >
+                Add Task
+              </Button>
+            </Box>
+            <List sx={{ flex: 1, overflow: 'auto' }}>
+              {note.tasks?.map((task) => (
+                <ListItem
+                  key={task.id}
+                  sx={{
+                    borderBottom: 1,
+                    borderColor: 'divider',
+                    '&:last-child': { borderBottom: 0 },
+                  }}
+                >
+                  <ListItemIcon>
+                    <Checkbox
+                      checked={task.completed}
+                      onChange={() => handleTaskToggle(task.id)}
+                      sx={{
+                        '&.Mui-checked': {
+                          color: 'primary.main',
+                        },
+                      }}
+                    />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <TextField
+                        value={task.text}
+                        onChange={(e) => handleTaskTextChange(task.id, e.target.value)}
+                        variant="standard"
+                        fullWidth
+                        sx={{
+                          '& .MuiInput-root': {
+                            textDecoration: task.completed ? 'line-through' : 'none',
+                            color: task.completed ? 'text.secondary' : 'text.primary',
+                            fontSize: fontSize,
+                            fontFamily: fontFamily,
+                          },
+                          '& .MuiInput-root:before': {
+                            borderBottom: 'none',
+                          },
+                          '& .MuiInput-root:hover:not(.Mui-disabled):before': {
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                          },
+                        }}
+                      />
+                    }
+                  />
+                  <IconButton
+                    onClick={() => handleDeleteTask(task.id)}
+                    size="small"
+                    sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        ) : (
+          <Box
+            component="textarea"
+            value={note.content}
+            onChange={(e) => {
+              const newContent = e.target.value;
+              onNoteChange({ content: newContent });
+              updateTypingSpeed(newContent, note.content);
+            }}
+            sx={{
+              flex: 1,
+              resize: 'none',
+              border: 'none',
               outline: 'none',
-              boxShadow: theme.palette.mode === 'dark' 
-                ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
-                : '0 4px 16px rgba(0,0,0,0.12)',
-            },
-          }}
-        />
+              p: 2,
+              fontSize: fontSize,
+              lineHeight: 1.6,
+              letterSpacing: '-0.01em',
+              fontFamily: fontFamily,
+              backgroundColor: 'background.paper',
+              color: 'text.primary',
+              borderRadius: 2,
+              boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
+              transition: 'all 0.2s ease-in-out',
+              '&:focus': {
+                outline: 'none',
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
+                  : '0 4px 16px rgba(0,0,0,0.12)',
+              },
+            }}
+          />
+        )}
+        
         <Box
           sx={{
             mt: 2,
@@ -314,20 +470,27 @@ const Editor: React.FC<EditorProps> = ({
           }}
         >
           <Box sx={{ display: 'flex', gap: 3 }}>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              Words: {getWordCount(note.content)}
-            </Typography>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              Characters: {getCharacterCount(note.content)}
-            </Typography>
+            {note.type === 'todo' ? (
+              <>
+                <Typography variant="body2" color="text.secondary">
+                  Tasks: {getCompletedTaskCount()}/{getTotalTaskCount()}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Progress: {getTotalTaskCount() > 0 ? Math.round((getCompletedTaskCount() / getTotalTaskCount()) * 100) : 0}%
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Typography variant="body2" color="text.secondary">
+                  Words: {getWordCount(note.content)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Characters: {getCharacterCount(note.content)}
+                </Typography>
+              </>
+            )}
           </Box>
-          <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />
+          {note.type !== 'todo' && <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />}
         </Box>
       </Box>
     </Box>

@@ -5,6 +5,7 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
+  ListItemIcon,
   IconButton,
   Typography,
   Divider,
@@ -42,6 +43,8 @@ import {
   ExpandMore as ExpandMoreIcon,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
+  CheckBox as CheckBoxIcon,
+  Note as NoteIcon,
 } from '@mui/icons-material';
 
 interface Note {
@@ -56,6 +59,12 @@ interface Note {
   color?: string;
   isArchived?: boolean;
   isFavorite?: boolean;
+  type?: 'note' | 'todo';
+  tasks?: Array<{
+    id: string;
+    text: string;
+    completed: boolean;
+  }>;
 }
 
 interface SidebarProps {
@@ -126,12 +135,21 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [passwordError, setPasswordError] = React.useState('');
   const [showArchived, setShowArchived] = React.useState(false);
   const [showFavorites, setShowFavorites] = React.useState(true);
+  const [addNoteMenuAnchor, setAddNoteMenuAnchor] = React.useState<null | HTMLElement>(null);
 
-  const handleAddNote = () => {
+  const handleAddNoteMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAddNoteMenuAnchor(event.currentTarget);
+  };
+
+  const handleAddNoteMenuClose = () => {
+    setAddNoteMenuAnchor(null);
+  };
+
+  const handleAddNote = (type: 'note' | 'todo' = 'note') => {
     const newNote: Note = {
       id: Date.now().toString(),
-      title: 'New Note',
-      content: '',
+      title: type === 'todo' ? 'New To-Do List' : 'New Note',
+      content: type === 'todo' ? '' : '',
       lastModified: new Date(),
       createdAt: new Date(),
       isPinned: false,
@@ -139,9 +157,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       color: 'default',
       isArchived: false,
       isFavorite: false,
+      type: type,
+      tasks: type === 'todo' ? [
+        { id: '1', text: 'Add your first task here', completed: false }
+      ] : undefined,
     };
     setNotes([newNote, ...notes]);
     onNoteSelect(newNote.id);
+    handleAddNoteMenuClose();
   };
 
   const handleDeleteNote = (noteId: string) => {
@@ -385,7 +408,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Add new note">
             <IconButton
-              onClick={handleAddNote}
+              onClick={handleAddNoteMenuOpen}
               color="primary"
               size="small"
               sx={{ borderRadius: 1 }}
@@ -393,6 +416,32 @@ const Sidebar: React.FC<SidebarProps> = ({
               <AddIcon />
             </IconButton>
           </Tooltip>
+          <Menu
+            anchorEl={addNoteMenuAnchor}
+            open={Boolean(addNoteMenuAnchor)}
+            onClose={handleAddNoteMenuClose}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'left',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'left',
+            }}
+          >
+            <MenuItem onClick={() => handleAddNote('note')}>
+              <ListItemIcon>
+                <NoteIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="New Note" secondary="Create a regular note" />
+            </MenuItem>
+            <MenuItem onClick={() => handleAddNote('todo')}>
+              <ListItemIcon>
+                <CheckBoxIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="New To-Do List" secondary="Create a checklist" />
+            </MenuItem>
+          </Menu>
           <Tooltip title="Toggle selection mode">
             <IconButton
               onClick={() => {
@@ -572,6 +621,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 }} 
                               />
                             )}
+                            {note.type === 'todo' && (
+                              <CheckBoxIcon 
+                                sx={{ 
+                                  fontSize: '0.8rem', 
+                                  mr: 1,
+                                  color: note.color && note.color !== 'default'
+                                    ? (isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'success.main')
+                                    : 'success.main'
+                                }} 
+                              />
+                            )}
                             <Typography
                               sx={{
                                 fontWeight: selectedNote === note.id ? 600 : 400,
@@ -706,6 +766,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                           color: note.color && note.color !== 'default'
                             ? (isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'primary.main')
                             : 'primary.main'
+                        }} 
+                      />
+                    )}
+                    {note.type === 'todo' && (
+                      <CheckBoxIcon 
+                        sx={{ 
+                          fontSize: '0.8rem', 
+                          mr: 1,
+                          color: note.color && note.color !== 'default'
+                            ? (isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'success.main')
+                            : 'success.main'
                         }} 
                       />
                     )}
@@ -866,6 +937,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                                   color: note.color && note.color !== 'default'
                                     ? (isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'primary.main')
                                     : 'primary.main'
+                                }} 
+                              />
+                            )}
+                            {note.type === 'todo' && (
+                              <CheckBoxIcon 
+                                sx={{ 
+                                  fontSize: '0.8rem', 
+                                  mr: 1,
+                                  color: note.color && note.color !== 'default'
+                                    ? (isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'success.main')
+                                    : 'success.main'
                                 }} 
                               />
                             )}
