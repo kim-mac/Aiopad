@@ -15,6 +15,12 @@ import {
   Checkbox,
   IconButton,
   Button,
+  Menu,
+  MenuItem,
+  ListItemButton,
+  FormControl,
+  Select,
+  InputLabel,
 } from '@mui/material';
 import { 
   Speed as SpeedIcon, 
@@ -22,6 +28,9 @@ import {
   EmojiEvents,
   Add as AddIcon,
   Delete as DeleteIcon,
+  Flag as FlagIcon,
+  Schedule as ScheduleIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import Toolbar from './Toolbar';
 
@@ -35,6 +44,8 @@ interface Note {
     id: string;
     text: string;
     completed: boolean;
+    priority?: 'low' | 'medium' | 'high';
+    dueDate?: Date;
   }>;
 }
 
@@ -117,6 +128,8 @@ const Editor: React.FC<EditorProps> = ({
       id: Date.now().toString(),
       text: 'New task',
       completed: false,
+      priority: undefined,
+      dueDate: undefined,
     };
     
     onNoteChange({ tasks: [...note.tasks, newTask] });
@@ -126,6 +139,26 @@ const Editor: React.FC<EditorProps> = ({
     if (!note?.tasks) return;
     
     const updatedTasks = note.tasks.filter(task => task.id !== taskId);
+    onNoteChange({ tasks: updatedTasks });
+  };
+
+  const handleTaskPriorityChange = (taskId: string, priority: 'low' | 'medium' | 'high') => {
+    if (!note?.tasks) return;
+    
+    const updatedTasks = note.tasks.map(task =>
+      task.id === taskId ? { ...task, priority } : task
+    );
+    
+    onNoteChange({ tasks: updatedTasks });
+  };
+
+  const handleTaskDueDateChange = (taskId: string, dueDate: Date | null) => {
+    if (!note?.tasks) return;
+    
+    const updatedTasks = note.tasks.map(task =>
+      task.id === taskId ? { ...task, dueDate: dueDate || undefined } : task
+    );
+    
     onNoteChange({ tasks: updatedTasks });
   };
 
@@ -190,6 +223,29 @@ const Editor: React.FC<EditorProps> = ({
     if (wpm < 50) return 'Steady';
     if (wpm < 70) return 'Swift';
     return 'Blazing';
+  };
+
+  const getPriorityColor = (priority: 'low' | 'medium' | 'high' | undefined) => {
+    switch (priority) {
+      case 'high':
+        return 'error.main';
+      case 'medium':
+        return 'warning.main';
+      case 'low':
+        return 'success.main';
+      default:
+        return 'text.secondary';
+    }
+  };
+
+  const formatDueDate = (dueDate: Date | undefined) => {
+    if (!dueDate) return '';
+    return dueDate.toLocaleDateString();
+  };
+
+  const isOverdue = (dueDate: Date | undefined) => {
+    if (!dueDate) return false;
+    return new Date() > dueDate;
   };
 
   const SpeedIndicator: React.FC<{ wpm: number, isTyping: boolean }> = ({ wpm, isTyping }) => {
@@ -373,51 +429,122 @@ const Editor: React.FC<EditorProps> = ({
                     borderBottom: 1,
                     borderColor: 'divider',
                     '&:last-child': { borderBottom: 0 },
+                    flexDirection: 'column',
+                    alignItems: 'stretch',
                   }}
                 >
-                  <ListItemIcon>
-                    <Checkbox
-                      checked={task.completed}
-                      onChange={() => handleTaskToggle(task.id)}
-                      sx={{
-                        '&.Mui-checked': {
-                          color: 'primary.main',
-                        },
-                      }}
-                    />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <TextField
-                        value={task.text}
-                        onChange={(e) => handleTaskTextChange(task.id, e.target.value)}
-                        variant="standard"
-                        fullWidth
+                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                    <ListItemIcon>
+                      <Checkbox
+                        checked={task.completed}
+                        onChange={() => handleTaskToggle(task.id)}
                         sx={{
-                          '& .MuiInput-root': {
-                            textDecoration: task.completed ? 'line-through' : 'none',
-                            color: task.completed ? 'text.secondary' : 'text.primary',
-                            fontSize: fontSize,
-                            fontFamily: fontFamily,
-                          },
-                          '& .MuiInput-root:before': {
-                            borderBottom: 'none',
-                          },
-                          '& .MuiInput-root:hover:not(.Mui-disabled):before': {
-                            borderBottom: '1px solid',
-                            borderColor: 'divider',
+                          '&.Mui-checked': {
+                            color: 'primary.main',
                           },
                         }}
                       />
-                    }
-                  />
-                  <IconButton
-                    onClick={() => handleDeleteTask(task.id)}
-                    size="small"
-                    sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <TextField
+                          value={task.text}
+                          onChange={(e) => handleTaskTextChange(task.id, e.target.value)}
+                          variant="standard"
+                          fullWidth
+                          sx={{
+                            '& .MuiInput-root': {
+                              textDecoration: task.completed ? 'line-through' : 'none',
+                              color: task.completed ? 'text.secondary' : 'text.primary',
+                              fontSize: fontSize,
+                              fontFamily: fontFamily,
+                            },
+                            '& .MuiInput-root:before': {
+                              borderBottom: 'none',
+                            },
+                            '& .MuiInput-root:hover:not(.Mui-disabled):before': {
+                              borderBottom: '1px solid',
+                              borderColor: 'divider',
+                            },
+                          }}
+                        />
+                      }
+                    />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <FormControl size="small" sx={{ minWidth: 100 }}>
+                        <Select
+                          value={task.priority || ''}
+                          onChange={(e) => handleTaskPriorityChange(task.id, e.target.value as 'low' | 'medium' | 'high')}
+                          size="small"
+                          displayEmpty
+                          sx={{ 
+                            '& .MuiSelect-select': { 
+                              py: 0.5,
+                              fontSize: '0.75rem',
+                              minHeight: 'auto'
+                            }
+                          }}
+                        >
+                          <MenuItem value="">
+                            <FlagIcon sx={{ fontSize: '0.875rem', mr: 0.5, opacity: 0.5 }} />
+                            Priority
+                          </MenuItem>
+                          <MenuItem value="low">Low</MenuItem>
+                          <MenuItem value="medium">Medium</MenuItem>
+                          <MenuItem value="high">High</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <TextField
+                        type="date"
+                        size="small"
+                        value={task.dueDate ? task.dueDate.toISOString().split('T')[0] : ''}
+                        onChange={(e) => {
+                          const date = e.target.value ? new Date(e.target.value) : null;
+                          handleTaskDueDateChange(task.id, date);
+                        }}
+                        sx={{ 
+                          minWidth: 120,
+                          '& .MuiInputBase-input': {
+                            py: 0.5,
+                            fontSize: '0.75rem',
+                            minHeight: 'auto'
+                          }
+                        }}
+                        placeholder="Due date"
+                      />
+                      <IconButton
+                        onClick={() => handleDeleteTask(task.id)}
+                        size="small"
+                        sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                  {(task.priority || task.dueDate) && (
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1, ml: 7 }}>
+                      {task.priority && (
+                        <Chip
+                          icon={<FlagIcon />}
+                          label={task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                          size="small"
+                          color={task.priority === 'high' ? 'error' : task.priority === 'medium' ? 'warning' : 'success'}
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      )}
+                      {task.dueDate && (
+                        <Chip
+                          icon={<ScheduleIcon />}
+                          label={formatDueDate(task.dueDate)}
+                          size="small"
+                          color={isOverdue(task.dueDate) ? 'error' : 'default'}
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      )}
+                    </Box>
+                  )}
                 </ListItem>
               ))}
             </List>
