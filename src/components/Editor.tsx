@@ -46,6 +46,8 @@ interface Note {
     completed: boolean;
     priority?: 'low' | 'medium' | 'high';
     dueDate?: Date;
+    taskType?: 'one-time' | 'daily';
+    lastCompleted?: Date;
   }>;
 }
 
@@ -104,9 +106,17 @@ const Editor: React.FC<EditorProps> = ({
   const handleTaskToggle = (taskId: string) => {
     if (!note?.tasks) return;
     
-    const updatedTasks = note.tasks.map(task =>
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    );
+    const updatedTasks = note.tasks.map(task => {
+      if (task.id === taskId) {
+        const newCompleted = !task.completed;
+        return { 
+          ...task, 
+          completed: newCompleted,
+          lastCompleted: newCompleted ? new Date() : undefined
+        };
+      }
+      return task;
+    });
     
     onNoteChange({ tasks: updatedTasks });
   };
@@ -130,6 +140,8 @@ const Editor: React.FC<EditorProps> = ({
       completed: false,
       priority: undefined,
       dueDate: undefined,
+      taskType: 'one-time' as const,
+      lastCompleted: undefined,
     };
     
     onNoteChange({ tasks: [...note.tasks, newTask] });
@@ -160,6 +172,66 @@ const Editor: React.FC<EditorProps> = ({
     );
     
     onNoteChange({ tasks: updatedTasks });
+  };
+
+  const handleTaskTypeChange = (taskId: string, taskType: 'one-time' | 'daily') => {
+    if (!note?.tasks) return;
+    
+    const updatedTasks = note.tasks.map(task =>
+      task.id === taskId ? { ...task, taskType } : task
+    );
+    
+    onNoteChange({ tasks: updatedTasks });
+  };
+
+  const resetDailyTasks = () => {
+    if (!note?.tasks) return;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const updatedTasks = note.tasks.map(task => {
+      if (task.taskType === 'daily' && task.lastCompleted) {
+        const lastCompletedDate = new Date(task.lastCompleted);
+        lastCompletedDate.setHours(0, 0, 0, 0);
+        
+        // Reset if last completed was before today
+        if (lastCompletedDate < today) {
+          return { ...task, completed: false, lastCompleted: undefined };
+        }
+      }
+      return task;
+    });
+    
+    onNoteChange({ tasks: updatedTasks });
+  };
+
+  // Reset daily tasks when component mounts or note changes
+  React.useEffect(() => {
+    if (note?.type === 'todo') {
+      resetDailyTasks();
+    }
+  }, [note?.id]); // Only run when note ID changes, not on every task change
+
+  const getPriorityWeight = (priority: 'low' | 'medium' | 'high' | undefined) => {
+    switch (priority) {
+      case 'high':
+        return 3;
+      case 'medium':
+        return 2;
+      case 'low':
+        return 1;
+      default:
+        return 0;
+    }
+  };
+
+  const sortTasksByPriority = (tasks: any[]) => {
+    return [...tasks].sort((a, b) => {
+      const aWeight = getPriorityWeight(a.priority);
+      const bWeight = getPriorityWeight(b.priority);
+      return bWeight - aWeight; // High priority first
+    });
   };
 
   const getCompletedTaskCount = () => {
@@ -411,7 +483,7 @@ const Editor: React.FC<EditorProps> = ({
               overflow: 'hidden',
             }}
           >
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Button
                 startIcon={<AddIcon />}
                 onClick={handleAddTask}
@@ -420,9 +492,30 @@ const Editor: React.FC<EditorProps> = ({
               >
                 Add Task
               </Button>
+              <Button
+                startIcon={<Timer />}
+                onClick={resetDailyTasks}
+                variant="text"
+                size="small"
+                color="info"
+              >
+                Reset Daily Tasks
+              </Button>
             </Box>
-            <List sx={{ flex: 1, overflow: 'auto' }}>
-              {note.tasks?.map((task) => (
+                          <List sx={{ flex: 1, overflow: 'auto' }}>
+                {sortTasksByPriority(note.tasks || []).map((task) => {
+                // Ensure task has all required fields
+                const safeTask = {
+                  id: task.id || Date.now().toString(),
+                  text: task.text || 'Untitled task',
+                  completed: task.completed || false,
+                  priority: task.priority || undefined,
+                  dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
+                  taskType: task.taskType || 'one-time',
+                  lastCompleted: task.lastCompleted ? new Date(task.lastCompleted) : undefined,
+                };
+                
+                return (
                 <ListItem
                   key={task.id}
                   sx={{
@@ -436,8 +529,8 @@ const Editor: React.FC<EditorProps> = ({
                   <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                     <ListItemIcon>
                       <Checkbox
-                        checked={task.completed}
-                        onChange={() => handleTaskToggle(task.id)}
+                        checked={safeTask.completed}
+                        onChange={() => handleTaskToggle(safeTask.id)}
                         sx={{
                           '&.Mui-checked': {
                             color: 'primary.main',
@@ -448,14 +541,14 @@ const Editor: React.FC<EditorProps> = ({
                     <ListItemText
                       primary={
                         <TextField
-                          value={task.text}
-                          onChange={(e) => handleTaskTextChange(task.id, e.target.value)}
+                          value={safeTask.text}
+                          onChange={(e) => handleTaskTextChange(safeTask.id, e.target.value)}
                           variant="standard"
                           fullWidth
                           sx={{
                             '& .MuiInput-root': {
-                              textDecoration: task.completed ? 'line-through' : 'none',
-                              color: task.completed ? 'text.secondary' : 'text.primary',
+                              textDecoration: safeTask.completed ? 'line-through' : 'none',
+                              color: safeTask.completed ? 'text.secondary' : 'text.primary',
                               fontSize: fontSize,
                               fontFamily: fontFamily,
                             },
@@ -473,8 +566,8 @@ const Editor: React.FC<EditorProps> = ({
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <FormControl size="small" sx={{ minWidth: 100 }}>
                         <Select
-                          value={task.priority || ''}
-                          onChange={(e) => handleTaskPriorityChange(task.id, e.target.value as 'low' | 'medium' | 'high')}
+                          value={safeTask.priority || ''}
+                          onChange={(e) => handleTaskPriorityChange(safeTask.id, e.target.value as 'low' | 'medium' | 'high')}
                           size="small"
                           displayEmpty
                           sx={{ 
@@ -494,13 +587,30 @@ const Editor: React.FC<EditorProps> = ({
                           <MenuItem value="high">High</MenuItem>
                         </Select>
                       </FormControl>
+                      <FormControl size="small" sx={{ minWidth: 100 }}>
+                        <Select
+                          value={safeTask.taskType}
+                          onChange={(e) => handleTaskTypeChange(safeTask.id, e.target.value as 'one-time' | 'daily')}
+                          size="small"
+                          sx={{ 
+                            '& .MuiSelect-select': { 
+                              py: 0.5,
+                              fontSize: '0.75rem',
+                              minHeight: 'auto'
+                            }
+                          }}
+                        >
+                          <MenuItem value="one-time">One-time</MenuItem>
+                          <MenuItem value="daily">Daily</MenuItem>
+                        </Select>
+                      </FormControl>
                       <TextField
                         type="date"
                         size="small"
-                        value={task.dueDate ? task.dueDate.toISOString().split('T')[0] : ''}
+                        value={safeTask.dueDate ? safeTask.dueDate.toISOString().split('T')[0] : ''}
                         onChange={(e) => {
                           const date = e.target.value ? new Date(e.target.value) : null;
-                          handleTaskDueDateChange(task.id, date);
+                          handleTaskDueDateChange(safeTask.id, date);
                         }}
                         sx={{ 
                           minWidth: 120,
@@ -513,7 +623,7 @@ const Editor: React.FC<EditorProps> = ({
                         placeholder="Due date"
                       />
                       <IconButton
-                        onClick={() => handleDeleteTask(task.id)}
+                        onClick={() => handleDeleteTask(safeTask.id)}
                         size="small"
                         sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
                       >
@@ -521,24 +631,44 @@ const Editor: React.FC<EditorProps> = ({
                       </IconButton>
                     </Box>
                   </Box>
-                  {(task.priority || task.dueDate) && (
+                  {(safeTask.priority || safeTask.dueDate) && (
                     <Box sx={{ display: 'flex', gap: 1, mt: 1, ml: 7 }}>
-                      {task.priority && (
+                      {safeTask.priority && (
                         <Chip
                           icon={<FlagIcon />}
-                          label={task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                          label={safeTask.priority.charAt(0).toUpperCase() + safeTask.priority.slice(1)}
                           size="small"
-                          color={task.priority === 'high' ? 'error' : task.priority === 'medium' ? 'warning' : 'success'}
+                          color={safeTask.priority === 'high' ? 'error' : safeTask.priority === 'medium' ? 'warning' : 'success'}
                           variant="outlined"
                           sx={{ height: 20, fontSize: '0.7rem' }}
                         />
                       )}
-                      {task.dueDate && (
+                      {safeTask.dueDate && (
                         <Chip
                           icon={<ScheduleIcon />}
-                          label={formatDueDate(task.dueDate)}
+                          label={formatDueDate(safeTask.dueDate)}
                           size="small"
-                          color={isOverdue(task.dueDate) ? 'error' : 'default'}
+                          color={isOverdue(safeTask.dueDate) ? 'error' : 'default'}
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      )}
+                      {safeTask.taskType === 'daily' && (
+                        <Chip
+                          icon={<Timer />}
+                          label="Daily"
+                          size="small"
+                          color="info"
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      )}
+                      {safeTask.lastCompleted && (
+                        <Chip
+                          icon={<EmojiEvents />}
+                          label={`Last: ${formatDueDate(safeTask.lastCompleted)}`}
+                          size="small"
+                          color="success"
                           variant="outlined"
                           sx={{ height: 20, fontSize: '0.7rem' }}
                         />
@@ -546,7 +676,8 @@ const Editor: React.FC<EditorProps> = ({
                     </Box>
                   )}
                 </ListItem>
-              ))}
+                );
+              })}
             </List>
           </Box>
         ) : (

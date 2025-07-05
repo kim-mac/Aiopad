@@ -23,6 +23,8 @@ interface Note {
     completed: boolean;
     priority?: 'low' | 'medium' | 'high';
     dueDate?: Date;
+    taskType?: 'one-time' | 'daily';
+    lastCompleted?: Date;
   }>;
 }
 
@@ -83,11 +85,23 @@ export const getNotes = (): Note[] => {
     if (!savedNotes) return [];
     
     const parsedNotes = JSON.parse(savedNotes);
-    return parsedNotes.map((note: any) => ({
-      ...note,
-      lastModified: new Date(note.lastModified),
-      createdAt: note.createdAt ? new Date(note.createdAt) : undefined
-    }));
+    return parsedNotes.map((note: any) => {
+      // Ensure tasks have the new fields for compatibility
+      const migratedTasks = note.tasks?.map((task: any) => ({
+        ...task,
+        priority: task.priority || undefined,
+        dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
+        taskType: task.taskType || 'one-time',
+        lastCompleted: task.lastCompleted ? new Date(task.lastCompleted) : undefined,
+      })) || [];
+      
+      return {
+        ...note,
+        lastModified: new Date(note.lastModified),
+        createdAt: note.createdAt ? new Date(note.createdAt) : undefined,
+        tasks: migratedTasks,
+      };
+    });
   } catch (error) {
     console.error('Error getting saved notes:', error);
     return [];

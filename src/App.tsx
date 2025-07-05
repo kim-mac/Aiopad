@@ -25,6 +25,8 @@ interface Note {
     completed: boolean;
     priority?: 'low' | 'medium' | 'high';
     dueDate?: Date;
+    taskType?: 'one-time' | 'daily';
+    lastCompleted?: Date;
   }>;
 }
 
