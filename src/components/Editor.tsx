@@ -187,18 +187,50 @@ const Editor: React.FC<EditorProps> = ({
   const resetDailyTasks = () => {
     if (!note?.tasks) return;
     
+    console.log('Resetting daily tasks...');
+    console.log('Current tasks:', note.tasks);
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const updatedTasks = note.tasks.map(task => {
-      if (task.taskType === 'daily' && task.lastCompleted) {
-        const lastCompletedDate = new Date(task.lastCompleted);
-        lastCompletedDate.setHours(0, 0, 0, 0);
+      if (task.taskType === 'daily') {
+        console.log(`Processing daily task: ${task.text}, completed: ${task.completed}, lastCompleted: ${task.lastCompleted}`);
         
-        // Reset if last completed was before today
-        if (lastCompletedDate < today) {
-          return { ...task, completed: false, lastCompleted: undefined };
+        // If task has a lastCompleted date, check if it's from before today
+        if (task.lastCompleted) {
+          const lastCompletedDate = new Date(task.lastCompleted);
+          lastCompletedDate.setHours(0, 0, 0, 0);
+          
+          console.log(`Last completed date: ${lastCompletedDate}, Today: ${today}`);
+          
+          // Reset if last completed was before today
+          if (lastCompletedDate < today) {
+            console.log(`Resetting task: ${task.text}`);
+            return { ...task, completed: false, lastCompleted: undefined };
+          }
+        } else if (task.completed) {
+          // If task is completed but has no lastCompleted date, reset it
+          console.log(`Resetting completed task without lastCompleted: ${task.text}`);
+          return { ...task, completed: false };
         }
+      }
+      return task;
+    });
+    
+    console.log('Updated tasks:', updatedTasks);
+    onNoteChange({ tasks: updatedTasks });
+  };
+
+  const forceResetAllDaily = () => {
+    if (!note?.tasks) return;
+    
+    console.log('Force resetting all daily tasks...');
+    
+    const updatedTasks = note.tasks.map(task => {
+      if (task.taskType === 'daily') {
+        console.log(`Force resetting daily task: ${task.text}`);
+        return { ...task, completed: false, lastCompleted: undefined };
       }
       return task;
     });
@@ -492,15 +524,26 @@ const Editor: React.FC<EditorProps> = ({
               >
                 Add Task
               </Button>
-              <Button
-                startIcon={<Timer />}
-                onClick={resetDailyTasks}
-                variant="text"
-                size="small"
-                color="info"
-              >
-                Reset Daily Tasks
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  startIcon={<Timer />}
+                  onClick={resetDailyTasks}
+                  variant="text"
+                  size="small"
+                  color="info"
+                >
+                  Reset Daily Tasks
+                </Button>
+                <Button
+                  startIcon={<Timer />}
+                  onClick={forceResetAllDaily}
+                  variant="text"
+                  size="small"
+                  color="warning"
+                >
+                  Force Reset All Daily
+                </Button>
+              </Box>
             </Box>
                           <List sx={{ flex: 1, overflow: 'auto' }}>
                 {sortTasksByPriority(note.tasks || []).map((task) => {
