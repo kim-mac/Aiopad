@@ -95,6 +95,14 @@ const Editor: React.FC<EditorProps> = ({
   const [isTyping, setIsTyping] = React.useState(false);
   const typingTimeout = React.useRef<ReturnType<typeof setTimeout>>();
 
+  // Sorting and filtering state
+  const [sortBy, setSortBy] = React.useState<'priority' | 'dueDate' | 'creationDate' | 'name'>('priority');
+  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc');
+  const [filterCompleted, setFilterCompleted] = React.useState<'all' | 'completed' | 'pending'>('all');
+  const [filterPriority, setFilterPriority] = React.useState<'all' | 'high' | 'medium' | 'low' | 'none'>('all');
+  const [filterType, setFilterType] = React.useState<'all' | 'one-time' | 'daily'>('all');
+  const [searchQuery, setSearchQuery] = React.useState('');
+
   const getWordCount = (text: string) => {
     return text.trim().split(/\s+/).filter(word => word.length > 0).length;
   };
@@ -266,12 +274,86 @@ const Editor: React.FC<EditorProps> = ({
     });
   };
 
+  const sortAndFilterTasks = (tasks: any[]) => {
+    if (!tasks) return [];
+
+    // First, filter tasks
+    let filteredTasks = tasks.filter(task => {
+      // Filter by completion status
+      if (filterCompleted === 'completed' && !task.completed) return false;
+      if (filterCompleted === 'pending' && task.completed) return false;
+
+      // Filter by priority
+      if (filterPriority !== 'all') {
+        if (filterPriority === 'none' && task.priority) return false;
+        if (filterPriority !== 'none' && task.priority !== filterPriority) return false;
+      }
+
+      // Filter by task type
+      if (filterType !== 'all' && task.taskType !== filterType) return false;
+
+      // Filter by search query
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const taskText = task.text.toLowerCase();
+        const priority = task.priority?.toLowerCase() || '';
+        const taskType = task.taskType?.toLowerCase() || '';
+        
+        if (!taskText.includes(query) && 
+            !priority.includes(query) && 
+            !taskType.includes(query)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Then, sort tasks
+    filteredTasks.sort((a, b) => {
+      let aValue: any, bValue: any;
+
+      switch (sortBy) {
+        case 'priority':
+          aValue = getPriorityWeight(a.priority);
+          bValue = getPriorityWeight(b.priority);
+          break;
+        case 'dueDate':
+          aValue = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+          bValue = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+          break;
+        case 'creationDate':
+          aValue = new Date(a.id).getTime(); // Using task ID as creation date
+          bValue = new Date(b.id).getTime();
+          break;
+        case 'name':
+          aValue = a.text.toLowerCase();
+          bValue = b.text.toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+
+    return filteredTasks;
+  };
+
   const getCompletedTaskCount = () => {
     return note?.tasks?.filter(task => task.completed).length || 0;
   };
 
   const getTotalTaskCount = () => {
     return note?.tasks?.length || 0;
+  };
+
+  const getFilteredTaskCount = () => {
+    return sortAndFilterTasks(note?.tasks || []).length;
   };
 
   const formatTime = (seconds: number): string => {
@@ -464,8 +546,8 @@ const Editor: React.FC<EditorProps> = ({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2, overflow: 'hidden' }}>
         <TextField
           value={note.title}
           onChange={(e) => onNoteChange({ title: e.target.value })}
@@ -513,6 +595,9 @@ const Editor: React.FC<EditorProps> = ({
               borderRadius: 2,
               boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
               overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: 'calc(100vh - 200px)', // Ensure container doesn't exceed viewport
             }}
           >
             <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -545,8 +630,172 @@ const Editor: React.FC<EditorProps> = ({
                 </Button>
               </Box>
             </Box>
-                          <List sx={{ flex: 1, overflow: 'auto' }}>
-                {sortTasksByPriority(note.tasks || []).map((task) => {
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                {/* Search */}
+                <TextField
+                  size="small"
+                  placeholder="Search tasks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  sx={{ 
+                    minWidth: 150,
+                    '& .MuiInputBase-input': {
+                      py: 0.5,
+                      fontSize: '0.75rem',
+                      minHeight: 'auto'
+                    }
+                  }}
+                />
+                
+                {/* Sort Controls */}
+                <FormControl size="small" sx={{ minWidth: 100 }}>
+                  <Select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    size="small"
+                    sx={{ 
+                      '& .MuiSelect-select': { 
+                        py: 0.5,
+                        fontSize: '0.75rem',
+                        minHeight: 'auto'
+                      }
+                    }}
+                  >
+                    <MenuItem value="priority">Priority</MenuItem>
+                    <MenuItem value="dueDate">Due Date</MenuItem>
+                    <MenuItem value="creationDate">Creation Date</MenuItem>
+                    <MenuItem value="name">Name</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                <FormControl size="small" sx={{ minWidth: 80 }}>
+                  <Select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as any)}
+                    size="small"
+                    sx={{ 
+                      '& .MuiSelect-select': { 
+                        py: 0.5,
+                        fontSize: '0.75rem',
+                        minHeight: 'auto'
+                      }
+                    }}
+                  >
+                    <MenuItem value="desc">Desc</MenuItem>
+                    <MenuItem value="asc">Asc</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                {/* Filter Controls */}
+                <FormControl size="small" sx={{ minWidth: 100 }}>
+                  <Select
+                    value={filterCompleted}
+                    onChange={(e) => setFilterCompleted(e.target.value as any)}
+                    size="small"
+                    sx={{ 
+                      '& .MuiSelect-select': { 
+                        py: 0.5,
+                        fontSize: '0.75rem',
+                        minHeight: 'auto'
+                      }
+                    }}
+                  >
+                    <MenuItem value="all">All Tasks</MenuItem>
+                    <MenuItem value="pending">Pending</MenuItem>
+                    <MenuItem value="completed">Completed</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                <FormControl size="small" sx={{ minWidth: 100 }}>
+                  <Select
+                    value={filterPriority}
+                    onChange={(e) => setFilterPriority(e.target.value as any)}
+                    size="small"
+                    sx={{ 
+                      '& .MuiSelect-select': { 
+                        py: 0.5,
+                        fontSize: '0.75rem',
+                        minHeight: 'auto'
+                      }
+                    }}
+                  >
+                    <MenuItem value="all">All Priorities</MenuItem>
+                    <MenuItem value="high">High</MenuItem>
+                    <MenuItem value="medium">Medium</MenuItem>
+                    <MenuItem value="low">Low</MenuItem>
+                    <MenuItem value="none">No Priority</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                <FormControl size="small" sx={{ minWidth: 100 }}>
+                  <Select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value as any)}
+                    size="small"
+                    sx={{ 
+                      '& .MuiSelect-select': { 
+                        py: 0.5,
+                        fontSize: '0.75rem',
+                        minHeight: 'auto'
+                      }
+                    }}
+                  >
+                    <MenuItem value="all">All Types</MenuItem>
+                    <MenuItem value="one-time">One-time</MenuItem>
+                    <MenuItem value="daily">Daily</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                {/* Clear Filters Button */}
+                {(filterCompleted !== 'all' || filterPriority !== 'all' || filterType !== 'all' || searchQuery) && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => {
+                      setFilterCompleted('all');
+                      setFilterPriority('all');
+                      setFilterType('all');
+                      setSearchQuery('');
+                    }}
+                    color="secondary"
+                    sx={{ 
+                      py: 0.5,
+                      fontSize: '0.75rem',
+                      minHeight: 'auto'
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+                
+                {/* Task Count */}
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto', alignSelf: 'center', fontSize: '0.75rem' }}>
+                  {getFilteredTaskCount()}/{getTotalTaskCount()}
+                </Typography>
+              </Box>
+            </Box>
+                          <List sx={{ 
+                flex: 1, 
+                overflow: 'auto',
+                maxHeight: 'calc(100vh - 300px)', // Ensure there's always room for scrolling
+                minHeight: 200, // Minimum height for the list
+                '&::-webkit-scrollbar': {
+                  width: '8px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  backgroundColor: 'rgba(0,0,0,0.1)',
+                  borderRadius: '4px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  borderRadius: '4px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                  },
+                },
+              }}>
+                {sortAndFilterTasks(note.tasks || []).map((task) => {
                 // Ensure task has all required fields
                 const safeTask = {
                   id: task.id || Date.now().toString(),
@@ -719,9 +968,16 @@ const Editor: React.FC<EditorProps> = ({
                     </Box>
                   )}
                 </ListItem>
-                );
-              })}
-            </List>
+                                  );
+                })}
+                {sortAndFilterTasks(note.tasks || []).length === 0 && (
+                  <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+                    <Typography variant="body2">
+                      {getTotalTaskCount() > 0 ? 'No tasks match the current filters.' : 'No tasks yet. Add your first task!'}
+                    </Typography>
+                  </Box>
+                )}
+              </List>
           </Box>
         ) : (
           <Box
