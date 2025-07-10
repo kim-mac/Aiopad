@@ -49,6 +49,19 @@ interface Note {
     taskType?: 'one-time' | 'daily';
     lastCompleted?: Date;
   }>;
+  tabs?: Array<{
+    id: string;
+    name: string;
+    tasks: Array<{
+      id: string;
+      text: string;
+      completed: boolean;
+      priority?: 'low' | 'medium' | 'high';
+      dueDate?: Date;
+      taskType?: 'one-time' | 'daily';
+      lastCompleted?: Date;
+    }>;
+  }>;
 }
 
 interface EditorProps {
@@ -103,6 +116,9 @@ const Editor: React.FC<EditorProps> = ({
   const [filterType, setFilterType] = React.useState<'all' | 'one-time' | 'daily'>('all');
   const [searchQuery, setSearchQuery] = React.useState('');
 
+  // Tab management state
+  const [selectedTabId, setSelectedTabId] = React.useState<string | null>(null);
+
   const getWordCount = (text: string) => {
     return text.trim().split(/\s+/).filter(word => word.length > 0).length;
   };
@@ -112,9 +128,10 @@ const Editor: React.FC<EditorProps> = ({
   };
 
   const handleTaskToggle = (taskId: string) => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
+    if (!currentTasks.length) return;
     
-    const updatedTasks = note.tasks.map(task => {
+    const updatedTasks = currentTasks.map(task => {
       if (task.id === taskId) {
         const newCompleted = !task.completed;
         return { 
@@ -126,21 +143,30 @@ const Editor: React.FC<EditorProps> = ({
       return task;
     });
     
-    onNoteChange({ tasks: updatedTasks });
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks(updatedTasks);
+    } else {
+      onNoteChange({ tasks: updatedTasks });
+    }
   };
 
   const handleTaskTextChange = (taskId: string, newText: string) => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
+    if (!currentTasks.length) return;
     
-    const updatedTasks = note.tasks.map(task =>
+    const updatedTasks = currentTasks.map(task =>
       task.id === taskId ? { ...task, text: newText } : task
     );
     
-    onNoteChange({ tasks: updatedTasks });
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks(updatedTasks);
+    } else {
+      onNoteChange({ tasks: updatedTasks });
+    }
   };
 
   const handleAddTask = () => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
     
     const newTask = {
       id: Date.now().toString(),
@@ -152,56 +178,82 @@ const Editor: React.FC<EditorProps> = ({
       lastCompleted: undefined,
     };
     
-    onNoteChange({ tasks: [...note.tasks, newTask] });
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks([...currentTasks, newTask]);
+    } else {
+      onNoteChange({ tasks: [...(note?.tasks || []), newTask] });
+    }
   };
 
   const handleDeleteTask = (taskId: string) => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
+    if (!currentTasks.length) return;
     
-    const updatedTasks = note.tasks.filter(task => task.id !== taskId);
-    onNoteChange({ tasks: updatedTasks });
+    const updatedTasks = currentTasks.filter(task => task.id !== taskId);
+    
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks(updatedTasks);
+    } else {
+      onNoteChange({ tasks: updatedTasks });
+    }
   };
 
   const handleTaskPriorityChange = (taskId: string, priority: 'low' | 'medium' | 'high') => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
+    if (!currentTasks.length) return;
     
-    const updatedTasks = note.tasks.map(task =>
+    const updatedTasks = currentTasks.map(task =>
       task.id === taskId ? { ...task, priority } : task
     );
     
-    onNoteChange({ tasks: updatedTasks });
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks(updatedTasks);
+    } else {
+      onNoteChange({ tasks: updatedTasks });
+    }
   };
 
   const handleTaskDueDateChange = (taskId: string, dueDate: Date | null) => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
+    if (!currentTasks.length) return;
     
-    const updatedTasks = note.tasks.map(task =>
+    const updatedTasks = currentTasks.map(task =>
       task.id === taskId ? { ...task, dueDate: dueDate || undefined } : task
     );
     
-    onNoteChange({ tasks: updatedTasks });
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks(updatedTasks);
+    } else {
+      onNoteChange({ tasks: updatedTasks });
+    }
   };
 
   const handleTaskTypeChange = (taskId: string, taskType: 'one-time' | 'daily') => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
+    if (!currentTasks.length) return;
     
-    const updatedTasks = note.tasks.map(task =>
+    const updatedTasks = currentTasks.map(task =>
       task.id === taskId ? { ...task, taskType } : task
     );
     
-    onNoteChange({ tasks: updatedTasks });
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks(updatedTasks);
+    } else {
+      onNoteChange({ tasks: updatedTasks });
+    }
   };
 
   const resetDailyTasks = () => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
+    if (!currentTasks.length) return;
     
     console.log('Resetting daily tasks...');
-    console.log('Current tasks:', note.tasks);
+    console.log('Current tasks:', currentTasks);
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const updatedTasks = note.tasks.map(task => {
+    const updatedTasks = currentTasks.map(task => {
       if (task.taskType === 'daily') {
         console.log(`Processing daily task: ${task.text}, completed: ${task.completed}, lastCompleted: ${task.lastCompleted}`);
         
@@ -227,15 +279,21 @@ const Editor: React.FC<EditorProps> = ({
     });
     
     console.log('Updated tasks:', updatedTasks);
-    onNoteChange({ tasks: updatedTasks });
+    
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks(updatedTasks);
+    } else {
+      onNoteChange({ tasks: updatedTasks });
+    }
   };
 
   const forceResetAllDaily = () => {
-    if (!note?.tasks) return;
+    const currentTasks = getCurrentTasks();
+    if (!currentTasks.length) return;
     
     console.log('Force resetting all daily tasks...');
     
-    const updatedTasks = note.tasks.map(task => {
+    const updatedTasks = currentTasks.map(task => {
       if (task.taskType === 'daily') {
         console.log(`Force resetting daily task: ${task.text}`);
         return { ...task, completed: false, lastCompleted: undefined };
@@ -243,8 +301,86 @@ const Editor: React.FC<EditorProps> = ({
       return task;
     });
     
-    onNoteChange({ tasks: updatedTasks });
+    if (note?.tabs && selectedTabId) {
+      updateCurrentTabTasks(updatedTasks);
+    } else {
+      onNoteChange({ tasks: updatedTasks });
+    }
   };
+
+  // Tab management functions
+  const getCurrentTasks = () => {
+    if (!note) return [];
+    
+    // If using tabs, return tasks from selected tab
+    if (note.tabs && note.tabs.length > 0) {
+      const selectedTab = note.tabs.find(tab => tab.id === selectedTabId);
+      return selectedTab?.tasks || [];
+    }
+    
+    // Fallback to legacy tasks
+    return note.tasks || [];
+  };
+
+  const createNewTab = () => {
+    if (!note) return;
+    
+    const newTab = {
+      id: Date.now().toString(),
+      name: `Tab ${(note.tabs?.length || 0) + 1}`,
+      tasks: []
+    };
+    
+    const updatedTabs = [...(note.tabs || []), newTab];
+    onNoteChange({ tabs: updatedTabs });
+    setSelectedTabId(newTab.id);
+  };
+
+  const deleteTab = (tabId: string) => {
+    if (!note?.tabs) return;
+    
+    const updatedTabs = note.tabs.filter(tab => tab.id !== tabId);
+    
+    // If deleting the selected tab, select the first available tab
+    let newSelectedTabId = selectedTabId;
+    if (tabId === selectedTabId) {
+      newSelectedTabId = updatedTabs.length > 0 ? updatedTabs[0].id : null;
+    }
+    
+    onNoteChange({ tabs: updatedTabs });
+    setSelectedTabId(newSelectedTabId);
+  };
+
+  const updateTabName = (tabId: string, newName: string) => {
+    if (!note?.tabs) return;
+    
+    const updatedTabs = note.tabs.map(tab =>
+      tab.id === tabId ? { ...tab, name: newName } : tab
+    );
+    
+    onNoteChange({ tabs: updatedTabs });
+  };
+
+  const updateCurrentTabTasks = (updatedTasks: any[]) => {
+    if (!note?.tabs || !selectedTabId) return;
+    
+    const updatedTabs = note.tabs.map(tab =>
+      tab.id === selectedTabId ? { ...tab, tasks: updatedTasks } : tab
+    );
+    
+    onNoteChange({ tabs: updatedTabs });
+  };
+
+  // Initialize selected tab when note changes
+  React.useEffect(() => {
+    if (note?.tabs && note.tabs.length > 0) {
+      if (!selectedTabId || !note.tabs.find(tab => tab.id === selectedTabId)) {
+        setSelectedTabId(note.tabs[0].id);
+      }
+    } else {
+      setSelectedTabId(null);
+    }
+  }, [note?.id, note?.tabs]);
 
   // Reset daily tasks when component mounts or note changes
   React.useEffect(() => {
@@ -345,15 +481,18 @@ const Editor: React.FC<EditorProps> = ({
   };
 
   const getCompletedTaskCount = () => {
-    return note?.tasks?.filter(task => task.completed).length || 0;
+    const currentTasks = getCurrentTasks();
+    return currentTasks.filter(task => task.completed).length;
   };
 
   const getTotalTaskCount = () => {
-    return note?.tasks?.length || 0;
+    const currentTasks = getCurrentTasks();
+    return currentTasks.length;
   };
 
   const getFilteredTaskCount = () => {
-    return sortAndFilterTasks(note?.tasks || []).length;
+    const currentTasks = getCurrentTasks();
+    return sortAndFilterTasks(currentTasks).length;
   };
 
   const formatTime = (seconds: number): string => {
@@ -611,6 +750,15 @@ const Editor: React.FC<EditorProps> = ({
               </Button>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
+                  startIcon={<AddIcon />}
+                  onClick={createNewTab}
+                  variant="text"
+                  size="small"
+                  color="primary"
+                >
+                  New Tab
+                </Button>
+                <Button
                   startIcon={<Timer />}
                   onClick={resetDailyTasks}
                   variant="text"
@@ -630,6 +778,74 @@ const Editor: React.FC<EditorProps> = ({
                 </Button>
               </Box>
             </Box>
+            
+            {/* Tab Navigation */}
+            {note?.tabs && note.tabs.length > 0 && (
+              <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <Box sx={{ display: 'flex', overflow: 'auto' }}>
+                  {note.tabs.map((tab) => (
+                    <Box
+                      key={tab.id}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 2,
+                        py: 1,
+                        borderBottom: 2,
+                        borderColor: selectedTabId === tab.id ? 'primary.main' : 'transparent',
+                        backgroundColor: selectedTabId === tab.id ? 'action.selected' : 'transparent',
+                        cursor: 'pointer',
+                        minWidth: 'fit-content',
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                      }}
+                      onClick={() => setSelectedTabId(tab.id)}
+                    >
+                      <TextField
+                        value={tab.name}
+                        onChange={(e) => updateTabName(tab.id, e.target.value)}
+                        variant="standard"
+                        size="small"
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{
+                          '& .MuiInput-root': {
+                            fontSize: '0.875rem',
+                            fontWeight: selectedTabId === tab.id ? 600 : 400,
+                            color: selectedTabId === tab.id ? 'primary.main' : 'text.primary',
+                          },
+                          '& .MuiInput-root:before': {
+                            borderBottom: 'none',
+                          },
+                          '& .MuiInput-root:hover:not(.Mui-disabled):before': {
+                            borderBottom: 'none',
+                          },
+                          '& .MuiInput-root:after': {
+                            borderBottom: 'none',
+                          },
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTab(tab.id);
+                        }}
+                        sx={{ 
+                          opacity: 0.5, 
+                          '&:hover': { opacity: 1 },
+                          p: 0.5,
+                          ml: 0.5
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
             <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 {/* Search */}
@@ -795,7 +1011,7 @@ const Editor: React.FC<EditorProps> = ({
                   },
                 },
               }}>
-                {sortAndFilterTasks(note.tasks || []).map((task) => {
+                {sortAndFilterTasks(getCurrentTasks()).map((task) => {
                 // Ensure task has all required fields
                 const safeTask = {
                   id: task.id || Date.now().toString(),
@@ -970,7 +1186,7 @@ const Editor: React.FC<EditorProps> = ({
                 </ListItem>
                                   );
                 })}
-                {sortAndFilterTasks(note.tasks || []).length === 0 && (
+                {sortAndFilterTasks(getCurrentTasks()).length === 0 && (
                   <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
                     <Typography variant="body2">
                       {getTotalTaskCount() > 0 ? 'No tasks match the current filters.' : 'No tasks yet. Add your first task!'}

@@ -28,6 +28,19 @@ interface Note {
     taskType?: 'one-time' | 'daily';
     lastCompleted?: Date;
   }>;
+  tabs?: Array<{
+    id: string;
+    name: string;
+    tasks: Array<{
+      id: string;
+      text: string;
+      completed: boolean;
+      priority?: 'low' | 'medium' | 'high';
+      dueDate?: Date;
+      taskType?: 'one-time' | 'daily';
+      lastCompleted?: Date;
+    }>;
+  }>;
 }
 
 function App() {

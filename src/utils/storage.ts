@@ -26,6 +26,19 @@ interface Note {
     taskType?: 'one-time' | 'daily';
     lastCompleted?: Date;
   }>;
+  tabs?: Array<{
+    id: string;
+    name: string;
+    tasks: Array<{
+      id: string;
+      text: string;
+      completed: boolean;
+      priority?: 'low' | 'medium' | 'high';
+      dueDate?: Date;
+      taskType?: 'one-time' | 'daily';
+      lastCompleted?: Date;
+    }>;
+  }>;
 }
 
 const isStorageAvailable = () => {
@@ -95,11 +108,24 @@ export const getNotes = (): Note[] => {
         lastCompleted: task.lastCompleted ? new Date(task.lastCompleted) : undefined,
       })) || [];
       
+      // Ensure tabs have the new fields for compatibility
+      const migratedTabs = note.tabs?.map((tab: any) => ({
+        ...tab,
+        tasks: tab.tasks?.map((task: any) => ({
+          ...task,
+          priority: task.priority || undefined,
+          dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
+          taskType: task.taskType || 'one-time',
+          lastCompleted: task.lastCompleted ? new Date(task.lastCompleted) : undefined,
+        })) || [],
+      })) || [];
+      
       return {
         ...note,
         lastModified: new Date(note.lastModified),
         createdAt: note.createdAt ? new Date(note.createdAt) : undefined,
         tasks: migratedTasks,
+        tabs: migratedTabs,
       };
     });
   } catch (error) {
