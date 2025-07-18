@@ -21,6 +21,8 @@ import {
   FormControl,
   Select,
   InputLabel,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import { 
   Speed as SpeedIcon, 
@@ -31,8 +33,11 @@ import {
   Flag as FlagIcon,
   Schedule as ScheduleIcon,
   MoreVert as MoreVertIcon,
+  Edit as EditIcon,
+  Draw as DrawIcon,
 } from '@mui/icons-material';
 import Toolbar from './Toolbar';
+import HandwritingCanvas from './HandwritingCanvas';
 
 interface Note {
   id: string;
@@ -118,6 +123,9 @@ const Editor: React.FC<EditorProps> = ({
 
   // Tab management state
   const [selectedTabId, setSelectedTabId] = React.useState<string | null>(null);
+  
+  // Handwriting mode state
+  const [isHandwritingMode, setIsHandwritingMode] = React.useState(false);
 
   const getWordCount = (text: string) => {
     return text.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -573,6 +581,14 @@ const Editor: React.FC<EditorProps> = ({
     return new Date() > dueDate;
   };
 
+  const handleHandwritingTextConverted = (text: string) => {
+    // Append the converted text to the current note content
+    const currentContent = note?.content || '';
+    const newContent = currentContent + (currentContent ? '\n\n' : '') + text;
+    onNoteChange({ content: newContent });
+    setIsHandwritingMode(false); // Switch back to text mode
+  };
+
   const SpeedIndicator: React.FC<{ wpm: number, isTyping: boolean }> = ({ wpm, isTyping }) => {
     const isDark = theme.palette.mode === 'dark';
 
@@ -725,6 +741,32 @@ const Editor: React.FC<EditorProps> = ({
             noteTitle={note.title}
           />
         </Box>
+
+        {/* Handwriting Mode Toggle */}
+        {note.type !== 'todo' && (
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+            <ToggleButtonGroup
+              value={isHandwritingMode ? 'handwriting' : 'text'}
+              exclusive
+              onChange={(event, newMode) => {
+                if (newMode !== null) {
+                  setIsHandwritingMode(newMode === 'handwriting');
+                }
+              }}
+              aria-label="text alignment"
+              size="small"
+            >
+              <ToggleButton value="text" aria-label="text mode">
+                <EditIcon sx={{ mr: 1 }} />
+                Text
+              </ToggleButton>
+              <ToggleButton value="handwriting" aria-label="handwriting mode">
+                <DrawIcon sx={{ mr: 1 }} />
+                Handwriting
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        )}
         
         {note.type === 'todo' ? (
           <Box
@@ -1196,37 +1238,60 @@ const Editor: React.FC<EditorProps> = ({
               </List>
           </Box>
         ) : (
-          <Box
-            component="textarea"
-            value={note.content}
-            onChange={(e) => {
-              const newContent = e.target.value;
-              onNoteChange({ content: newContent });
-              updateTypingSpeed(newContent, note.content);
-            }}
-            sx={{
-              flex: 1,
-              resize: 'none',
-              border: 'none',
-              outline: 'none',
-              p: 2,
-              fontSize: fontSize,
-              lineHeight: 1.6,
-              letterSpacing: '-0.01em',
-              fontFamily: fontFamily,
-              backgroundColor: 'background.paper',
-              color: 'text.primary',
-              borderRadius: 2,
-              boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-              transition: 'all 0.2s ease-in-out',
-              '&:focus': {
-                outline: 'none',
-                boxShadow: theme.palette.mode === 'dark' 
-                  ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
-                  : '0 4px 16px rgba(0,0,0,0.12)',
-              },
-            }}
-          />
+          <>
+            {isHandwritingMode ? (
+              <Box
+                sx={{
+                  flex: 1,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'flex-start',
+                  p: 2,
+                  overflow: 'auto',
+                }}
+              >
+                <HandwritingCanvas
+                  onTextConverted={handleHandwritingTextConverted}
+                  width={Math.min(800, window.innerWidth - 100)}
+                  height={Math.min(600, window.innerHeight - 300)}
+                  strokeColor={theme.palette.mode === 'dark' ? '#ffffff' : '#000000'}
+                  backgroundColor={theme.palette.background.paper}
+                />
+              </Box>
+            ) : (
+              <Box
+                component="textarea"
+                value={note.content}
+                onChange={(e) => {
+                  const newContent = e.target.value;
+                  onNoteChange({ content: newContent });
+                  updateTypingSpeed(newContent, note.content);
+                }}
+                sx={{
+                  flex: 1,
+                  resize: 'none',
+                  border: 'none',
+                  outline: 'none',
+                  p: 2,
+                  fontSize: fontSize,
+                  lineHeight: 1.6,
+                  letterSpacing: '-0.01em',
+                  fontFamily: fontFamily,
+                  backgroundColor: 'background.paper',
+                  color: 'text.primary',
+                  borderRadius: 2,
+                  boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:focus': {
+                    outline: 'none',
+                    boxShadow: theme.palette.mode === 'dark' 
+                      ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
+                      : '0 4px 16px rgba(0,0,0,0.12)',
+                  },
+                }}
+              />
+            )}
+          </>
         )}
         
         <Box
@@ -1263,7 +1328,7 @@ const Editor: React.FC<EditorProps> = ({
               </>
             )}
           </Box>
-          {note.type !== 'todo' && <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />}
+          {note.type !== 'todo' && !isHandwritingMode && <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />}
         </Box>
       </Box>
     </Box>
