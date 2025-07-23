@@ -44,7 +44,7 @@ interface Note {
   title: string;
   content: string;
   lastModified: Date;
-  type?: 'note' | 'todo';
+  type?: 'note' | 'todo' | 'handwriting';
   tasks?: Array<{
     id: string;
     text: string;
@@ -742,32 +742,6 @@ const Editor: React.FC<EditorProps> = ({
           />
         </Box>
 
-        {/* Handwriting Mode Toggle */}
-        {note.type !== 'todo' && (
-          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
-            <ToggleButtonGroup
-              value={isHandwritingMode ? 'handwriting' : 'text'}
-              exclusive
-              onChange={(event, newMode) => {
-                if (newMode !== null) {
-                  setIsHandwritingMode(newMode === 'handwriting');
-                }
-              }}
-              aria-label="text alignment"
-              size="small"
-            >
-              <ToggleButton value="text" aria-label="text mode">
-                <EditIcon sx={{ mr: 1 }} />
-                Text
-              </ToggleButton>
-              <ToggleButton value="handwriting" aria-label="handwriting mode">
-                <DrawIcon sx={{ mr: 1 }} />
-                Handwriting
-              </ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
-        )}
-        
         {note.type === 'todo' ? (
           <Box
             sx={{
@@ -1237,61 +1211,63 @@ const Editor: React.FC<EditorProps> = ({
                 )}
               </List>
           </Box>
+        ) : note.type === 'handwriting' ? (
+          <Box
+            sx={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              p: 0,
+              m: 0,
+              minHeight: 0,
+              minWidth: 0,
+              height: '100%',
+              width: '100%',
+              overflow: 'hidden',
+            }}
+          >
+            <HandwritingCanvas
+              onTextConverted={handleHandwritingTextConverted}
+              strokeColor={theme.palette.mode === 'dark' ? '#ffffff' : '#000000'}
+              backgroundColor={theme.palette.background.paper}
+              showStrokeControls={true}
+              style={{ width: '100%', height: '100%', flex: 1 }}
+            />
+          </Box>
         ) : (
-          <>
-            {isHandwritingMode ? (
-              <Box
-                sx={{
-                  flex: 1,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'flex-start',
-                  p: 2,
-                  overflow: 'auto',
-                }}
-              >
-                <HandwritingCanvas
-                  onTextConverted={handleHandwritingTextConverted}
-                  width={Math.min(800, window.innerWidth - 100)}
-                  height={Math.min(600, window.innerHeight - 300)}
-                  strokeColor={theme.palette.mode === 'dark' ? '#ffffff' : '#000000'}
-                  backgroundColor={theme.palette.background.paper}
-                />
-              </Box>
-            ) : (
-              <Box
-                component="textarea"
-                value={note.content}
-                onChange={(e) => {
-                  const newContent = e.target.value;
-                  onNoteChange({ content: newContent });
-                  updateTypingSpeed(newContent, note.content);
-                }}
-                sx={{
-                  flex: 1,
-                  resize: 'none',
-                  border: 'none',
-                  outline: 'none',
-                  p: 2,
-                  fontSize: fontSize,
-                  lineHeight: 1.6,
-                  letterSpacing: '-0.01em',
-                  fontFamily: fontFamily,
-                  backgroundColor: 'background.paper',
-                  color: 'text.primary',
-                  borderRadius: 2,
-                  boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-                  transition: 'all 0.2s ease-in-out',
-                  '&:focus': {
-                    outline: 'none',
-                    boxShadow: theme.palette.mode === 'dark' 
-                      ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
-                      : '0 4px 16px rgba(0,0,0,0.12)',
-                  },
-                }}
-              />
-            )}
-          </>
+          <Box
+            component="textarea"
+            value={note.content}
+            onChange={(e) => {
+              const newContent = e.target.value;
+              onNoteChange({ content: newContent });
+              updateTypingSpeed(newContent, note.content);
+            }}
+            sx={{
+              flex: 1,
+              resize: 'none',
+              border: 'none',
+              outline: 'none',
+              p: 2,
+              fontSize: fontSize,
+              lineHeight: 1.6,
+              letterSpacing: '-0.01em',
+              fontFamily: fontFamily,
+              backgroundColor: 'background.paper',
+              color: 'text.primary',
+              borderRadius: 2,
+              boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
+              transition: 'all 0.2s ease-in-out',
+              '&:focus': {
+                outline: 'none',
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
+                  : '0 4px 16px rgba(0,0,0,0.12)',
+              },
+            }}
+          />
         )}
         
         <Box
@@ -1319,12 +1295,16 @@ const Editor: React.FC<EditorProps> = ({
               </>
             ) : (
               <>
-                <Typography variant="body2" color="text.secondary">
-                  Words: {getWordCount(note.content)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Characters: {getCharacterCount(note.content)}
-                </Typography>
+                {!isHandwritingMode && (
+                  <>
+                    <Typography variant="body2" color="text.secondary">
+                      Words: {getWordCount(note.content)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Characters: {getCharacterCount(note.content)}
+                    </Typography>
+                  </>
+                )}
               </>
             )}
           </Box>

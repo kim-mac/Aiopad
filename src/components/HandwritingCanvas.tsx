@@ -21,12 +21,12 @@ import { createWorker } from 'tesseract.js';
 
 interface HandwritingCanvasProps {
   onTextConverted: (text: string) => void;
-  width?: number;
-  height?: number;
   strokeColor?: string;
   strokeWidth?: number;
   backgroundColor?: string;
   showStrokeControls?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 interface Point {
@@ -42,14 +42,15 @@ interface Stroke {
 
 const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
   onTextConverted,
-  width = 800,
-  height = 600,
   strokeColor = '#000000',
   strokeWidth = 3,
   backgroundColor = '#ffffff',
   showStrokeControls = true,
+  className,
+  style,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
@@ -59,56 +60,46 @@ const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [currentStrokeWidth, setCurrentStrokeWidth] = useState(strokeWidth);
   const [ocrProgress, setOcrProgress] = useState<string>('');
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
-  // Initialize canvas
+  // ResizeObserver to make canvas fill parent
+  useEffect(() => {
+    const resize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setCanvasSize({ width: rect.width, height: rect.height });
+      }
+    };
+    resize();
+    const observer = new (window as any).ResizeObserver(resize);
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Initialize and redraw canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    // Set canvas size
-    canvas.width = width;
-    canvas.height = height;
-
-    // Set initial background
+    canvas.width = canvasSize.width;
+    canvas.height = canvasSize.height;
     ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, width, height);
-
-    // Set drawing styles
+    ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-  }, [width, height, backgroundColor]);
-
-  // Redraw canvas when strokes change
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Clear canvas
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw all strokes
     strokes.forEach(stroke => {
       if (stroke.points.length < 2) return;
-
       ctx.strokeStyle = stroke.color;
       ctx.lineWidth = stroke.width;
       ctx.beginPath();
       ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-
       for (let i = 1; i < stroke.points.length; i++) {
         ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
       }
-
       ctx.stroke();
     });
-  }, [strokes, width, height, backgroundColor]);
+  }, [strokes, backgroundColor, canvasSize]);
 
   const getCanvasPoint = useCallback((event: React.MouseEvent | React.TouchEvent): Point | null => {
     const canvas = canvasRef.current;
@@ -332,7 +323,12 @@ const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+    <Box
+      ref={containerRef}
+      className={className}
+      style={{ width: '100%', height: '100%', ...style }}
+      sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1, minHeight: 0, minWidth: 0 }}
+    >
       <Paper
         elevation={3}
         sx={{
@@ -340,6 +336,13 @@ const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
           borderColor: 'divider',
           borderRadius: 2,
           overflow: 'hidden',
+          width: '100%',
+          height: '100%',
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         <Box sx={{ p: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -398,8 +401,15 @@ const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
           ref={canvasRef}
           style={{
             cursor: 'crosshair',
-            touchAction: 'none', // Prevent scrolling on touch devices
+            touchAction: 'none',
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            flex: 1,
+            background: backgroundColor,
           }}
+          width={canvasSize.width}
+          height={canvasSize.height}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}

@@ -45,6 +45,7 @@ import {
   StarBorder as StarBorderIcon,
   CheckBox as CheckBoxIcon,
   Note as NoteIcon,
+  Draw as DrawIcon,
 } from '@mui/icons-material';
 
 interface Note {
@@ -59,7 +60,7 @@ interface Note {
   color?: string;
   isArchived?: boolean;
   isFavorite?: boolean;
-  type?: 'note' | 'todo';
+  type?: 'note' | 'todo' | 'handwriting';
   tasks?: Array<{
     id: string;
     text: string;
@@ -147,11 +148,16 @@ const Sidebar: React.FC<SidebarProps> = ({
     setAddNoteMenuAnchor(null);
   };
 
-  const handleAddNote = (type: 'note' | 'todo' = 'note') => {
+  const handleAddNote = (type: 'note' | 'todo' | 'handwriting' = 'note') => {
     const newNote: Note = {
       id: Date.now().toString(),
-      title: type === 'todo' ? 'New To-Do List' : 'New Note',
-      content: type === 'todo' ? '' : '',
+      title:
+        type === 'todo'
+          ? 'New To-Do List'
+          : type === 'handwriting'
+          ? 'New Handwriting Note'
+          : 'New Note',
+      content: '',
       lastModified: new Date(),
       createdAt: new Date(),
       isPinned: false,
@@ -159,10 +165,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       color: 'default',
       isArchived: false,
       isFavorite: false,
-      type: type,
-      tasks: type === 'todo' ? [
-        { id: '1', text: 'Add your first task here', completed: false }
-      ] : undefined,
+      type: type === 'handwriting' ? 'handwriting' : type,
+      tasks:
+        type === 'todo'
+          ? [
+              { id: '1', text: 'Add your first task here', completed: false },
+            ]
+          : undefined,
     };
     setNotes([newNote, ...notes]);
     onNoteSelect(newNote.id);
@@ -442,6 +451,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <CheckBoxIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText primary="New To-Do List" secondary="Create a checklist" />
+            </MenuItem>
+            <MenuItem onClick={() => handleAddNote('handwriting')}>
+              <ListItemIcon>
+                <DrawIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="New Handwriting Note" secondary="Create a handwriting note" />
             </MenuItem>
           </Menu>
           <Tooltip title="Toggle selection mode">
