@@ -9,6 +9,7 @@ import {
   CircularProgress,
   Alert,
   Snackbar,
+  Divider,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -16,6 +17,7 @@ import {
   TextFields as TextIcon,
   Undo as UndoIcon,
   Redo as RedoIcon,
+  Palette as PaletteIcon,
 } from '@mui/icons-material';
 import { createWorker } from 'tesseract.js';
 
@@ -59,8 +61,26 @@ const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
   const [isConverting, setIsConverting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentStrokeWidth, setCurrentStrokeWidth] = useState(strokeWidth);
+  const [currentStrokeColor, setCurrentStrokeColor] = useState(strokeColor);
   const [ocrProgress, setOcrProgress] = useState<string>('');
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  // Predefined colors
+  const predefinedColors = [
+    '#000000', // Black
+    '#FF0000', // Red
+    '#00FF00', // Green
+    '#0000FF', // Blue
+    '#FFFF00', // Yellow
+    '#FF00FF', // Magenta
+    '#00FFFF', // Cyan
+    '#FFA500', // Orange
+    '#800080', // Purple
+    '#008000', // Dark Green
+    '#FFC0CB', // Pink
+    '#A52A2A', // Brown
+  ];
 
   // ResizeObserver to make canvas fill parent
   useEffect(() => {
@@ -75,6 +95,20 @@ const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
+
+  // Click outside handler for color picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showColorPicker && containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showColorPicker]);
 
   // Initialize and redraw canvas
   useEffect(() => {
@@ -132,11 +166,11 @@ const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
     setIsDrawing(true);
     const newStroke: Stroke = {
       points: [point],
-      color: strokeColor,
+      color: currentStrokeColor,
       width: currentStrokeWidth,
     };
     setCurrentStroke(newStroke);
-  }, [getCanvasPoint, strokeColor, strokeWidth]);
+  }, [getCanvasPoint, currentStrokeColor, currentStrokeWidth]);
 
   const draw = useCallback((event: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing || !currentStroke) return;
@@ -363,25 +397,104 @@ const HandwritingCanvas: React.FC<HandwritingCanvasProps> = ({
           </Tooltip>
           
           {showStrokeControls && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
-              <Typography variant="caption" color="text.secondary">
-                Stroke:
-              </Typography>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={currentStrokeWidth}
-                onChange={(e) => setCurrentStrokeWidth(Number(e.target.value))}
-                style={{
-                  width: '80px',
-                  cursor: 'pointer',
-                }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ minWidth: '20px' }}>
-                {currentStrokeWidth}
-              </Typography>
-            </Box>
+            <>
+              <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 'fit-content' }}>
+                  Stroke:
+                </Typography>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={currentStrokeWidth}
+                  onChange={(e) => setCurrentStrokeWidth(Number(e.target.value))}
+                  style={{
+                    width: '60px',
+                    cursor: 'pointer',
+                  }}
+                />
+                <Typography variant="caption" color="text.secondary" sx={{ minWidth: '16px', textAlign: 'center' }}>
+                  {currentStrokeWidth}
+                </Typography>
+              </Box>
+              
+              <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 'fit-content' }}>
+                  Color:
+                </Typography>
+                <Box sx={{ position: 'relative' }}>
+                  <Tooltip title="Select color">
+                    <IconButton
+                      onClick={() => setShowColorPicker(!showColorPicker)}
+                      size="small"
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        border: '2px solid',
+                        borderColor: 'divider',
+                        backgroundColor: currentStrokeColor,
+                        borderRadius: 1,
+                        '&:hover': {
+                          backgroundColor: currentStrokeColor,
+                          opacity: 0.8,
+                          borderColor: 'primary.main',
+                        },
+                      }}
+                    />
+                  </Tooltip>
+                  
+                  {showColorPicker && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 'calc(100% + 4px)',
+                        left: 0,
+                        zIndex: 1000,
+                        backgroundColor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        p: 1,
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(6, 1fr)',
+                        gap: 0.5,
+                        boxShadow: 3,
+                        minWidth: '180px',
+                      }}
+                    >
+                      {predefinedColors.map((color) => (
+                        <Tooltip key={color} title={color}>
+                          <Box
+                            onClick={() => {
+                              setCurrentStrokeColor(color);
+                              setShowColorPicker(false);
+                            }}
+                            sx={{
+                              width: 20,
+                              height: 20,
+                              backgroundColor: color,
+                              border: '1px solid',
+                              borderColor: currentStrokeColor === color ? 'primary.main' : 'divider',
+                              borderRadius: 0.5,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              '&:hover': {
+                                borderColor: 'primary.main',
+                                transform: 'scale(1.1)',
+                              },
+                            }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            </>
           )}
           
           <Box sx={{ flex: 1 }} />
