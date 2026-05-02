@@ -19,6 +19,12 @@ interface Note {
   isArchived?: boolean;
   isFavorite?: boolean;
   type?: 'note' | 'todo';
+  tag?: string;
+  summary?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  contentType?: 'youtube' | 'pdf' | 'image' | 'url' | 'voice' | 'text';
+  thumbnail?: string;
+  sourceUrl?: string;
   tasks?: Array<{
     id: string;
     text: string;
@@ -143,6 +149,7 @@ function App() {
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <Editor
             note={currentNote}
+            notes={notes}
             onNoteChange={handleNoteChange}
             fontFamily={fontFamily}
             fontSize={fontSize}

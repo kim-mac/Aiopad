@@ -17,6 +17,12 @@ interface Note {
   isArchived?: boolean;
   isFavorite?: boolean;
   type?: 'note' | 'todo';
+  tag?: string;
+  summary?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  contentType?: 'youtube' | 'pdf' | 'image' | 'url' | 'voice' | 'text';
+  thumbnail?: string;
+  sourceUrl?: string;
   tasks?: Array<{
     id: string;
     text: string;

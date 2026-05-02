@@ -35,9 +35,15 @@ import {
   MoreVert as MoreVertIcon,
   Edit as EditIcon,
   Draw as DrawIcon,
+  Style as FlashcardIcon,
+  Share as ShareIcon,
+  Chat as ChatIcon,
 } from '@mui/icons-material';
 import Toolbar from './Toolbar';
 import HandwritingCanvas from './HandwritingCanvas';
+import FlashcardsDialog from './FlashcardsDialog';
+import ShareNoteDialog from './ShareNoteDialog';
+import ChatPanel from './ChatPanel';
 
 interface Note {
   id: string;
@@ -45,6 +51,12 @@ interface Note {
   content: string;
   lastModified: Date;
   type?: 'note' | 'todo' | 'handwriting';
+  tag?: string;
+  summary?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  contentType?: 'youtube' | 'pdf' | 'image' | 'url' | 'voice' | 'text';
+  thumbnail?: string;
+  sourceUrl?: string;
   tasks?: Array<{
     id: string;
     text: string;
@@ -71,6 +83,7 @@ interface Note {
 
 interface EditorProps {
   note: Note | undefined;
+  notes?: Note[];
   onNoteChange: (changes: Partial<Note>) => void;
   fontFamily: string;
   fontSize: number;
@@ -92,6 +105,7 @@ interface TypingMetrics {
 
 const Editor: React.FC<EditorProps> = ({
   note,
+  notes = [],
   onNoteChange,
   fontFamily,
   fontSize,
@@ -126,6 +140,11 @@ const Editor: React.FC<EditorProps> = ({
   
   // Handwriting mode state
   const [isHandwritingMode, setIsHandwritingMode] = React.useState(false);
+
+  // AI feature state
+  const [showFlashcards, setShowFlashcards] = React.useState(false);
+  const [showShare, setShowShare] = React.useState(false);
+  const [showChat, setShowChat] = React.useState(false);
 
   const getWordCount = (text: string) => {
     return text.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -1308,9 +1327,50 @@ const Editor: React.FC<EditorProps> = ({
               </>
             )}
           </Box>
-          {note.type !== 'todo' && !isHandwritingMode && <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {note.type !== 'todo' && !isHandwritingMode && <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />}
+            <Tooltip title="Generate Flashcards">
+              <IconButton size="small" onClick={() => setShowFlashcards(true)} color="warning">
+                <FlashcardIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Share Note">
+              <IconButton size="small" onClick={() => setShowShare(true)} color="primary">
+                <ShareIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={showChat ? 'Close Chat' : 'Chat with Notes'}>
+              <IconButton size="small" onClick={() => setShowChat((v) => !v)} color={showChat ? 'error' : 'primary'}>
+                <ChatIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
       </Box>
+
+      {showFlashcards && (
+        <FlashcardsDialog
+          open={showFlashcards}
+          onClose={() => setShowFlashcards(false)}
+          noteTitle={note.title}
+          noteContent={note.content}
+        />
+      )}
+
+      {showShare && (
+        <ShareNoteDialog
+          open={showShare}
+          onClose={() => setShowShare(false)}
+          note={note}
+        />
+      )}
+
+      {showChat && (
+        <ChatPanel
+          notes={notes.length > 0 ? notes : [note]}
+          onClose={() => setShowChat(false)}
+        />
+      )}
     </Box>
   );
 };

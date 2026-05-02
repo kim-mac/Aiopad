@@ -125,6 +125,61 @@ export async function chatWithNotes(
   ], { max_tokens: 1024 });
 }
 
+export async function analyzeImage(base64DataUrl: string): Promise<string> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return 'Error: NVIDIA API key is not configured.';
+  }
+
+  try {
+    const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'microsoft/phi-3.5-vision-instruct',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: base64DataUrl },
+              },
+              {
+                type: 'text',
+                text: `1. Extract ALL text visible in this image exactly as written.
+2. Describe what this image shows in detail.
+3. If this is a diagram, chart, or screenshot — explain what it represents and what insights it contains.
+4. List key insights or takeaways.
+Structure your response with clear headings.`,
+              },
+            ],
+          },
+        ],
+        max_tokens: 1024,
+        temperature: 0.5,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('NVIDIA vision API error:', errorText);
+      return `Error: Vision API request failed (${response.status}).`;
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) return 'Error: No response from vision model.';
+    return content.trim();
+  } catch (error) {
+    console.error('analyzeImage error:', error);
+    return `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  }
+}
+
 export async function generateFlashcards(
   content: string
 ): Promise<Array<{ front: string; back: string }>> {

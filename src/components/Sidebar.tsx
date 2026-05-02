@@ -46,14 +46,24 @@ import {
   CheckBox as CheckBoxIcon,
   Note as NoteIcon,
   Draw as DrawIcon,
+  VideoLibrary as YouTubeIcon,
+  PictureAsPdf as PdfIcon,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Mic as MicIcon,
 } from '@mui/icons-material';
+import YoutubeInput from './YoutubeInput';
+import PdfInput from './PdfInput';
+import ImageInput from './ImageInput';
+import UrlInput from './UrlInput';
+import VoiceInput from './VoiceInput';
 
 interface Note {
   id: string;
   title: string;
   content: string;
   lastModified: Date;
-  createdAt?: Date; // Make it optional for backward compatibility
+  createdAt?: Date;
   isPinned?: boolean;
   isLocked?: boolean;
   password?: string;
@@ -61,6 +71,12 @@ interface Note {
   isArchived?: boolean;
   isFavorite?: boolean;
   type?: 'note' | 'todo' | 'handwriting';
+  tag?: string;
+  summary?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  contentType?: 'youtube' | 'pdf' | 'image' | 'url' | 'voice' | 'text';
+  thumbnail?: string;
+  sourceUrl?: string;
   tasks?: Array<{
     id: string;
     text: string;
@@ -139,6 +155,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [showArchived, setShowArchived] = React.useState(false);
   const [showFavorites, setShowFavorites] = React.useState(true);
   const [addNoteMenuAnchor, setAddNoteMenuAnchor] = React.useState<null | HTMLElement>(null);
+  const [showYoutubeInput, setShowYoutubeInput] = React.useState(false);
+  const [showPdfInput, setShowPdfInput] = React.useState(false);
+  const [showImageInput, setShowImageInput] = React.useState(false);
+  const [showUrlInput, setShowUrlInput] = React.useState(false);
+  const [showVoiceInput, setShowVoiceInput] = React.useState(false);
 
   const handleAddNoteMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAddNoteMenuAnchor(event.currentTarget);
@@ -457,6 +478,36 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <DrawIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText primary="New Handwriting Note" secondary="Create a handwriting note" />
+            </MenuItem>
+            <MenuItem onClick={() => { setShowYoutubeInput(true); handleAddNoteMenuClose(); }}>
+              <ListItemIcon>
+                <YouTubeIcon fontSize="small" color="error" />
+              </ListItemIcon>
+              <ListItemText primary="🎬 YouTube → Note" secondary="Paste a YouTube link" />
+            </MenuItem>
+            <MenuItem onClick={() => { setShowPdfInput(true); handleAddNoteMenuClose(); }}>
+              <ListItemIcon>
+                <PdfIcon fontSize="small" color="error" />
+              </ListItemIcon>
+              <ListItemText primary="📄 PDF → Note" secondary="Upload a PDF document" />
+            </MenuItem>
+            <MenuItem onClick={() => { setShowImageInput(true); handleAddNoteMenuClose(); }}>
+              <ListItemIcon>
+                <ImageIcon fontSize="small" color="primary" />
+              </ListItemIcon>
+              <ListItemText primary="🖼️ Image → Note" secondary="Upload a photo or screenshot" />
+            </MenuItem>
+            <MenuItem onClick={() => { setShowUrlInput(true); handleAddNoteMenuClose(); }}>
+              <ListItemIcon>
+                <LinkIcon fontSize="small" color="primary" />
+              </ListItemIcon>
+              <ListItemText primary="🔗 URL → Note" secondary="Paste any webpage link" />
+            </MenuItem>
+            <MenuItem onClick={() => { setShowVoiceInput(true); handleAddNoteMenuClose(); }}>
+              <ListItemIcon>
+                <MicIcon fontSize="small" color="error" />
+              </ListItemIcon>
+              <ListItemText primary="🎤 Voice → Note" secondary="Record and transcribe speech" />
             </MenuItem>
           </Menu>
           <Tooltip title="Toggle selection mode">
@@ -1236,6 +1287,52 @@ const Sidebar: React.FC<SidebarProps> = ({
           <Button onClick={handleUnlockConfirm} variant="contained">Unlock</Button>
         </DialogActions>
       </Dialog>
+
+      <YoutubeInput
+        open={showYoutubeInput}
+        onClose={() => setShowYoutubeInput(false)}
+        onNoteCreated={(note) => {
+          setNotes([note, ...notes]);
+          onNoteSelect(note.id);
+          setShowYoutubeInput(false);
+        }}
+      />
+      <PdfInput
+        open={showPdfInput}
+        onClose={() => setShowPdfInput(false)}
+        onNoteCreated={(note) => {
+          setNotes([note, ...notes]);
+          onNoteSelect(note.id);
+          setShowPdfInput(false);
+        }}
+      />
+      <ImageInput
+        open={showImageInput}
+        onClose={() => setShowImageInput(false)}
+        onNoteCreated={(note) => {
+          setNotes([note, ...notes]);
+          onNoteSelect(note.id);
+          setShowImageInput(false);
+        }}
+      />
+      <UrlInput
+        open={showUrlInput}
+        onClose={() => setShowUrlInput(false)}
+        onNoteCreated={(note) => {
+          setNotes([note, ...notes]);
+          onNoteSelect(note.id);
+          setShowUrlInput(false);
+        }}
+      />
+      <VoiceInput
+        open={showVoiceInput}
+        onClose={() => setShowVoiceInput(false)}
+        onNoteCreated={(note) => {
+          setNotes([note, ...notes]);
+          onNoteSelect(note.id);
+          setShowVoiceInput(false);
+        }}
+      />
     </Box>
   );
 };
