@@ -1,0 +1,62 @@
+Add NVIDIA NIM as a new AI service to this existing Aiopad project.
+Do NOT modify any existing files — only add new ones.
+
+Create src/services/nvidia.ts:
+
+Base URL: https://integrate.api.nvidia.com/v1
+API key from .env: VITE_NVIDIA_API_KEY
+
+Add VITE_NVIDIA_API_KEY to the existing .env file (don't overwrite 
+anything else in .env).
+
+Create these functions:
+
+1. callNvidia(model: string, messages: array, options?: object)
+   - POST to /chat/completions
+   - OpenAI-compatible format
+   - Error handling that returns a readable error string
+   - Default model: "nvidia/llama-3.3-nemotron-super-49b-v1"
+
+2. explainContent(content: string, contentType: 'youtube' | 'pdf' | 'image' | 'url' | 'text')
+   - Builds system prompt based on contentType:
+
+   youtube: "You are an expert tutor. Break this transcript into 
+   clear sections with headings. Explain key concepts simply. 
+   End with Key Takeaways and What To Remember."
+   
+   pdf: "You are an academic assistant. Explain this document in 
+   plain English. Cover: what problem it solves, methodology, key 
+   findings, limitations, and why it matters."
+   
+   image: "Extract ALL text visible in this image. Describe what 
+   the image shows. If it contains a chart or diagram, explain 
+   what it represents."
+   
+   url: "Summarize this page. Cover the main argument, key points, 
+   and what the reader should take away."
+   
+   text: "Explain this content clearly and concisely. Highlight 
+   the most important points."
+   
+   - Returns structured markdown string
+
+3. generateNoteMeta(content: string)
+   - Returns JSON only, no extra text:
+     { "title": "", "tag": "", "summary": "", "difficulty": "" }
+   - Used to auto-tag every note on save
+
+4. chatWithNotes(question: string, notesContext: string)
+   - System prompt: "You are a personal knowledge assistant. 
+     The user has these saved notes: [notesContext]. Answer their 
+     question using the notes as context. If the answer isn't in 
+     the notes, say so clearly."
+   - Returns answer string
+
+Also create src/stores/aiStore.ts using Zustand:
+- isLoading: boolean
+- currentTask: string
+- setLoading(task: string): void
+- clearLoading(): void
+
+Also update .env.example to add:
+VITE_NVIDIA_API_KEY=nvapi-your-key-here
