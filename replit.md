@@ -31,7 +31,11 @@ src/
 ├── services/
 │   ├── nvidia.ts              — NVIDIA NIM API: callNvidia, explainContent, generateNoteMeta,
 │   │                            chatWithNotes, generateFlashcards, analyzeImage
-│   └── youtube.ts             — YouTube transcript fetching (noembed.com + kome.ai fallback)
+│   └── youtube.ts             — YouTube transcript: Vite proxy fetches watch page server-side
+│   │                            (avoids CORS on youtube.com HTML), extracts signed captionTracks
+│   │                            baseUrl, then browser fetches caption XML/JSON directly
+│   │                            (YouTube timedtext CDN allows browser CORS). Fallback: timedtext
+│   │                            list API via proxy then direct browser fetch.
 ├── stores/
 │   └── aiStore.ts             — Zustand store for AI loading state (NOT used due to React hook conflict, kept for future)
 └── utils/
