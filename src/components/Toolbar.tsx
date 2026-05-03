@@ -1171,37 +1171,37 @@ const Toolbar: React.FC<ToolbarProps> = ({
           icon: <AutoFixHigh />, 
           action: handleImproveWriting, 
           tooltip: 'Improve Writing (Select text first)',
-          disabled: false
+          disabled: true
         },
         { 
           icon: <Autorenew />, 
           action: handleParaphrase, 
           tooltip: 'Paraphrase (Select text first)',
-          disabled: false
+          disabled: true
         },
         { 
           icon: <Summarize />, 
           action: handleSummarize, 
           tooltip: 'Summarize (Select text first)',
-          disabled: false
+          disabled: true
         },
         { 
           icon: <Psychology />, 
           action: handleAutoComplete, 
           tooltip: 'AI Complete',
-          disabled: false
+          disabled: true
         },
         { 
           icon: <SmartToy />, 
           action: handleAIDetection, 
           tooltip: 'Detect AI Text (Select text first)',
-          disabled: false
+          disabled: true
         },
         { 
           icon: <Face />, 
           action: handleHumanize, 
           tooltip: 'Humanize Text (Select text first)',
-          disabled: false
+          disabled: true
         },
       ],
     },
