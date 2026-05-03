@@ -1,4 +1,6 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { 
   Box, 
   Typography, 
@@ -155,6 +157,9 @@ const Editor: React.FC<EditorProps> = ({
 
   // Focus mode
   const [focusMode, setFocusMode] = React.useState(false);
+
+  // Markdown edit toggle
+  const [isEditingContent, setIsEditingContent] = React.useState(false);
 
   // Real-time session elapsed ticker
   const [sessionElapsed, setSessionElapsed] = React.useState(0);
@@ -1325,15 +1330,17 @@ const Editor: React.FC<EditorProps> = ({
               style={{ width: '100%', height: '100%', flex: 1 }}
             />
           </Box>
-        ) : (
+        ) : isEditingContent ? (
           <Box
             component="textarea"
+            autoFocus
             value={note.content}
             onChange={(e) => {
               const newContent = e.target.value;
               onNoteChange({ content: newContent });
               updateTypingSpeed(newContent, note.content);
             }}
+            onBlur={() => setIsEditingContent(false)}
             sx={{
               flex: 1,
               resize: 'none',
@@ -1351,12 +1358,84 @@ const Editor: React.FC<EditorProps> = ({
               transition: 'all 0.2s ease-in-out',
               '&:focus': {
                 outline: 'none',
-                boxShadow: theme.palette.mode === 'dark' 
-                  ? '0 0 0 2px rgba(144, 202, 249, 0.2)' 
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '0 0 0 2px rgba(144, 202, 249, 0.2)'
                   : '0 4px 16px rgba(0,0,0,0.12)',
               },
             }}
           />
+        ) : (
+          <Box
+            onClick={() => setIsEditingContent(true)}
+            sx={{
+              flex: 1,
+              p: 2,
+              fontSize: fontSize,
+              lineHeight: 1.6,
+              fontFamily: fontFamily,
+              backgroundColor: 'background.paper',
+              color: 'text.primary',
+              borderRadius: 2,
+              boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
+              overflow: 'auto',
+              cursor: 'text',
+              minHeight: 200,
+              '& h1,& h2,& h3,& h4,& h5,& h6': {
+                color: 'text.primary',
+                mt: 2,
+                mb: 1,
+                fontWeight: 600,
+                lineHeight: 1.3,
+              },
+              '& h1': { fontSize: '1.8em' },
+              '& h2': { fontSize: '1.4em' },
+              '& h3': { fontSize: '1.2em' },
+              '& h4,& h5,& h6': { fontSize: '1em' },
+              '& p': { mt: 0, mb: 1 },
+              '& strong': { fontWeight: 700, color: 'text.primary' },
+              '& em': { fontStyle: 'italic' },
+              '& ul,& ol': { pl: 3, mb: 1 },
+              '& li': { mb: 0.25 },
+              '& code': {
+                fontFamily: 'monospace',
+                bgcolor: 'action.hover',
+                px: 0.5,
+                borderRadius: 0.5,
+                fontSize: '0.9em',
+              },
+              '& pre': {
+                bgcolor: 'action.hover',
+                p: 1.5,
+                borderRadius: 1,
+                overflow: 'auto',
+                mb: 1,
+                '& code': { bgcolor: 'transparent', p: 0 },
+              },
+              '& blockquote': {
+                borderLeft: `3px solid`,
+                borderColor: 'primary.main',
+                pl: 2,
+                ml: 0,
+                color: 'text.secondary',
+                fontStyle: 'italic',
+              },
+              '& hr': { border: 'none', borderTop: '1px solid', borderColor: 'divider', my: 2 },
+              '& a': { color: 'primary.main', textDecoration: 'underline' },
+              '& table': { borderCollapse: 'collapse', width: '100%', mb: 1 },
+              '& th,& td': { border: '1px solid', borderColor: 'divider', p: 0.75, textAlign: 'left' },
+              '& th': { bgcolor: 'action.hover', fontWeight: 600 },
+            }}
+          >
+            {note.content ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {note.content}
+              </ReactMarkdown>
+            ) : (
+              <Typography color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                Click to start writing...
+              </Typography>
+            )}
+          </Box>
         )}
         
         <Box
