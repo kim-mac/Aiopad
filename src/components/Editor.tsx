@@ -48,6 +48,8 @@ import {
   CenterFocusStrong as FocusModeIcon,
   CloseFullscreen as ExitFocusIcon,
   AddPhotoAlternate as AddImageIcon,
+  EditNote as EditNoteIcon,
+  Visibility as PreviewIcon,
 } from '@mui/icons-material';
 import Toolbar from './Toolbar';
 import HandwritingCanvas from './HandwritingCanvas';
@@ -1399,7 +1401,7 @@ const Editor: React.FC<EditorProps> = ({
                   onNoteChange({ content: newContent });
                   updateTypingSpeed(newContent, note.content);
                 }}
-                onBlur={() => setIsEditingContent(false)}
+                onBlur={() => {}}
                 sx={{
                   flex: 1,
                   minHeight: 0,
@@ -1427,7 +1429,6 @@ const Editor: React.FC<EditorProps> = ({
               />
             ) : (
               <Box
-                onClick={() => setIsEditingContent(true)}
                 sx={{
                   flex: 1,
                   minHeight: 0,
@@ -1603,11 +1604,22 @@ const Editor: React.FC<EditorProps> = ({
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             {note.type !== 'todo' && !isHandwritingMode && <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />}
             {note.type !== 'todo' && note.type !== 'handwriting' && (
-              <Tooltip title="Insert image (or drag & drop into note)">
-                <IconButton size="small" onClick={() => imageInputRef.current?.click()} color="primary">
-                  <AddImageIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              <>
+                <Tooltip title={isEditingContent ? 'Preview (render markdown)' : 'Edit (raw markdown)'}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setIsEditingContent(v => !v)}
+                    color={isEditingContent ? 'warning' : 'primary'}
+                  >
+                    {isEditingContent ? <PreviewIcon fontSize="small" /> : <EditNoteIcon fontSize="small" />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Insert image (or drag & drop into note)">
+                  <IconButton size="small" onClick={() => imageInputRef.current?.click()} color="primary">
+                    <AddImageIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
             )}
             <Tooltip title="Generate Flashcards">
               <IconButton size="small" onClick={() => setShowFlashcards(true)} color="primary">
