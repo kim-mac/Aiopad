@@ -1,0 +1,17 @@
+What we built:
+
+Orbit is a full-stack AI-powered knowledge base and browser companion built entirely on Replit.
+
+The web app lets you capture information from almost any source — paste a YouTube link and get structured study notes, drop a PDF or URL and get a clean AI summary, upload an image and extract its text via OCR or get a full visual analysis, or record your voice and have it transcribed and saved as a note instantly. Every piece of content is processed by NVIDIA's NIM API (Llama 3.3 Nemotron for text, Llama 3.2 Vision for images), auto-titled, tagged by topic and difficulty, and stored in a searchable personal knowledge base. The app includes a Pomodoro focus timer, multi-tab note organisation, and a full dark ocean theme built in Material UI with JetBrains Mono throughout.
+
+The second half of Orbit is a Chrome extension companion. A small glowing circle follows your cursor on every webpage you visit — silent by default, invisible until needed. The moment you highlight any text, a floating pill appears below your cursor. One click sends that selection directly to your Orbit notes without leaving the page. A second click opens a live multi-turn AI chat, grounded in the text you selected, right there inline — no new tab, no context switching. The extension and web app share live settings: theme, font, and AI mode stay in sync.
+
+We also built a three-key API fallback system so the app gracefully rotates between API keys when rate limits are hit, keeping it online under real usage.
+
+Why Orbit deserves a top prize:
+
+Most AI note-taking tools make you bring the content to the AI. Orbit puts the AI where the content already is — on the page you're reading, in the video you're watching, in the image you're looking at. That's the design insight: reduce the distance between encountering information and understanding it to nearly zero.
+
+The technical scope is genuinely broad: a production React + TypeScript + Vite + MUI web app, a working Chrome extension with multi-turn inline AI chat, NVIDIA multimodal model integration, browser-based OCR and speech-to-text, real-time settings sync between extension and app, and a resilient API layer — all built and hosted on Replit without a single line of local setup. Everything runs in the browser.
+
+Orbit was built for people who consume a lot of information and struggle to retain it. Students, researchers, writers, and developers who live in browser tabs. The Chrome extension in particular is the kind of feature that once you've used it, you can't imagine browsing without it — and that's the standard we built toward.
