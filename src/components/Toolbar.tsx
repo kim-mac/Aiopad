@@ -18,6 +18,7 @@ import {
   CircularProgress,
   Popover,
   TextField,
+  useTheme,
 } from '@mui/material';
 import {
   FormatBold,
@@ -31,7 +32,6 @@ import {
   Undo,
   Redo,
   SaveAlt,
-  Share,
   Menu as MenuIcon,
   ChevronLeft,
   Calculate,
@@ -79,6 +79,7 @@ const FONT_FAMILIES = [
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
 
 const FloatingCalculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const theme = useTheme();
   const [display, setDisplay] = React.useState('0');
   const [memory, setMemory] = React.useState<string | null>(null);
   const [operator, setOperator] = React.useState<string | null>(null);
@@ -217,7 +218,7 @@ const FloatingCalculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const getButtonStyle = (type: 'number' | 'operator' | 'function' | 'equals') => {
     const baseStyle = {
       ...commonButtonStyle,
-      color: 'white',
+      color: 'text.primary',
       fontWeight: 500,
     };
 
@@ -225,34 +226,30 @@ const FloatingCalculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       case 'number':
         return {
           ...baseStyle,
-          background: 'linear-gradient(145deg, #2c2c2c, #1a1a1a)',
-          '&:hover': {
-            background: 'linear-gradient(145deg, #333333, #222222)',
-          },
+          bgcolor: 'action.hover',
+          color: 'text.primary',
+          '&:hover': { bgcolor: 'action.selected' },
         };
       case 'operator':
         return {
           ...baseStyle,
-          background: 'linear-gradient(145deg, #ff9500, #ff8000)',
-          '&:hover': {
-            background: 'linear-gradient(145deg, #ffa533, #ff9500)',
-          },
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          '&:hover': { bgcolor: 'primary.dark' },
         };
       case 'function':
         return {
           ...baseStyle,
-          background: 'linear-gradient(145deg, #a5a5a5, #8a8a8a)',
-          '&:hover': {
-            background: 'linear-gradient(145deg, #b5b5b5, #9a9a9a)',
-          },
+          bgcolor: 'action.selected',
+          color: 'text.secondary',
+          '&:hover': { bgcolor: 'action.disabledBackground' },
         };
       case 'equals':
         return {
           ...baseStyle,
-          background: 'linear-gradient(145deg, #ff9500, #ff8000)',
-          '&:hover': {
-            background: 'linear-gradient(145deg, #ffa533, #ff9500)',
-          },
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          '&:hover': { bgcolor: 'primary.dark' },
         };
     }
   };
@@ -282,12 +279,12 @@ const FloatingCalculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         sx={{
           position: 'fixed',
           zIndex: 1300,
-          backgroundColor: '#1c1c1c',
+          backgroundColor: 'background.paper',
           borderRadius: 2,
           overflow: 'hidden',
           transform: `scale(${calculatorScale})`,
           transformOrigin: 'top left',
-          boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+          boxShadow: theme.shadows[8],
         }}
       >
         <Box
@@ -297,33 +294,30 @@ const FloatingCalculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             alignItems: 'center',
             justifyContent: 'space-between',
             p: 1,
-            bgcolor: '#2c2c2c',
+            bgcolor: 'background.default',
             cursor: 'move',
             userSelect: 'none',
             borderBottom: 1,
-            borderColor: 'rgba(255,255,255,0.1)',
+            borderColor: 'divider',
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <DragIndicator sx={{ opacity: 0.5, color: 'white' }} />
-            <Typography variant="subtitle2" sx={{ color: 'white' }}>Calculator</Typography>
+            <DragIndicator sx={{ opacity: 0.5, color: 'text.secondary' }} />
+            <Typography variant="subtitle2" color="text.primary">Calculator</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <IconButton
               size="small"
               onClick={onClose}
-              sx={{ 
-                opacity: 0.7, 
-                '&:hover': { opacity: 1 },
-                color: 'white',
-              }}
+              sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
             >
               <CloseIcon fontSize="small" />
             </IconButton>
           </Box>
         </Box>
-        <Box sx={{ p: 1, bgcolor: '#1c1c1c' }}>
+        <Box sx={{ p: 1, bgcolor: 'background.paper' }}>
           <Paper
+            variant="outlined"
             sx={{
               p: 2,
               mb: 1,
@@ -334,10 +328,9 @@ const FloatingCalculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
-              bgcolor: '#2c2c2c',
-              color: 'white',
+              bgcolor: 'action.hover',
+              color: 'text.primary',
               borderRadius: 1,
-              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)',
             }}
           >
             {display}
@@ -389,7 +382,7 @@ const FloatingCalculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 height: 0,
                 borderStyle: 'solid',
                 borderWidth: '0 0 10px 10px',
-                borderColor: 'rgba(255,255,255,0.5) transparent transparent transparent',
+                borderColor: `${theme.palette.text.secondary} transparent transparent transparent`,
               },
             }}
             onMouseDown={handleResizeStart}
@@ -1166,7 +1159,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
       title: 'File',
       tools: [
         { icon: <SaveAlt />, action: handleSaveClick, tooltip: 'Save As... (Ctrl+S)', disabled: false },
-        { icon: <Share />, action: () => {}, tooltip: 'Share', disabled: false },
         { icon: <Calculate />, action: () => setCalculatorOpen(true), tooltip: 'Calculator', disabled: false },
         { icon: <KeyboardIcon />, action: () => setKeyboardOpen(true), tooltip: 'On-screen Keyboard', disabled: false },
         { icon: <CalendarToday />, action: handleCalendarClick, tooltip: 'Calendar', disabled: false },
