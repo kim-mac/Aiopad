@@ -123,7 +123,7 @@ export async function analyzeImage(base64DataUrl: string): Promise<string> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'microsoft/phi-3.5-vision-instruct',
+        model: 'meta/llama-3.2-11b-vision-instruct',
         messages: [
           {
             role: 'user',
