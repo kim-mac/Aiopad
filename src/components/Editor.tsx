@@ -1477,11 +1477,6 @@ const Editor: React.FC<EditorProps> = ({
             )}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-            <Tooltip title={`Pomodoro — ${pomPhaseLabel[pomPhase]} (cycle ${pomCycles + 1})`}>
-              <Typography variant="caption" sx={{ color: pomPhaseColor[pomPhase], fontWeight: 700, mr: 0.5, cursor: 'default', userSelect: 'none' }}>
-                🍅
-              </Typography>
-            </Tooltip>
             <Typography variant="body2" color={pomPhaseColor[pomPhase]} sx={{ fontVariantNumeric: 'tabular-nums', minWidth: 40, fontWeight: 600 }}>
               {pomFormat(pomSeconds)}
             </Typography>
