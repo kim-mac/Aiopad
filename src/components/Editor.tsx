@@ -197,50 +197,80 @@ const Editor: React.FC<EditorProps> = ({
     files.forEach(addImageFromFile);
   };
 
-  // Real-time session elapsed ticker
-  const [sessionElapsed, setSessionElapsed] = React.useState(0);
+  // Real-time session elapsed ticker — DOM-direct to avoid re-rendering the whole editor
+  const sessionDisplayRef = React.useRef<HTMLSpanElement>(null);
   React.useEffect(() => {
-    const id = setInterval(() => setSessionElapsed(Math.floor((Date.now() - typingMetrics.sessionStart) / 1000)), 1000);
+    const id = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - typingMetrics.sessionStart) / 1000);
+      if (sessionDisplayRef.current) sessionDisplayRef.current.textContent = formatTime(elapsed);
+    }, 1000);
     return () => clearInterval(id);
   }, [typingMetrics.sessionStart]);
 
-  // Pomodoro state
+  // Pomodoro state — only structural changes (phase, running, alert) go through React state.
+  // The per-second countdown uses refs + direct DOM mutation to prevent full re-renders.
   type PomodoroPhase = 'work' | 'short-break' | 'long-break';
   const POMODORO_DURATIONS: Record<PomodoroPhase, number> = { 'work': 25 * 60, 'short-break': 5 * 60, 'long-break': 15 * 60 };
   const [pomRunning, setPomRunning] = React.useState(false);
   const [pomPhase, setPomPhase] = React.useState<PomodoroPhase>('work');
-  const [pomSeconds, setPomSeconds] = React.useState(POMODORO_DURATIONS['work']);
   const [pomCycles, setPomCycles] = React.useState(0);
   const [pomAlert, setPomAlert] = React.useState<string | null>(null);
   const pomRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const pomSecondsRef = React.useRef(POMODORO_DURATIONS['work']);
+  const pomPhaseRef = React.useRef<PomodoroPhase>('work');
+  const pomCyclesRef = React.useRef(0);
+  const pomDisplayRef = React.useRef<HTMLSpanElement>(null);
+
+  // Keep phase/cycles refs in sync so the interval closure reads fresh values
+  React.useEffect(() => { pomPhaseRef.current = pomPhase; }, [pomPhase]);
+  React.useEffect(() => { pomCyclesRef.current = pomCycles; }, [pomCycles]);
 
   React.useEffect(() => {
     if (pomRunning) {
-      pomRef.current = setInterval(() => setPomSeconds(s => Math.max(0, s - 1)), 1000);
+      pomRef.current = setInterval(() => {
+        const next = Math.max(0, pomSecondsRef.current - 1);
+        pomSecondsRef.current = next;
+        if (pomDisplayRef.current) pomDisplayRef.current.textContent = pomFormat(next);
+
+        if (next === 0) {
+          clearInterval(pomRef.current!);
+          setPomRunning(false);
+          const phase = pomPhaseRef.current;
+          const cycles = pomCyclesRef.current;
+          if (phase === 'work') {
+            const newCycles = cycles + 1;
+            const nextPhase: PomodoroPhase = newCycles % 4 === 0 ? 'long-break' : 'short-break';
+            pomCyclesRef.current = newCycles;
+            pomPhaseRef.current = nextPhase;
+            pomSecondsRef.current = POMODORO_DURATIONS[nextPhase];
+            if (pomDisplayRef.current) pomDisplayRef.current.textContent = pomFormat(POMODORO_DURATIONS[nextPhase]);
+            setPomCycles(newCycles);
+            setPomPhase(nextPhase);
+            setPomAlert(nextPhase === 'long-break' ? '🎉 Great work! Take a long 15-min break.' : '✅ Session done! Take a 5-min break.');
+          } else {
+            pomPhaseRef.current = 'work';
+            pomSecondsRef.current = POMODORO_DURATIONS['work'];
+            if (pomDisplayRef.current) pomDisplayRef.current.textContent = pomFormat(POMODORO_DURATIONS['work']);
+            setPomPhase('work');
+            setPomAlert('🍅 Break over! Time to focus.');
+          }
+        }
+      }, 1000);
     } else {
       if (pomRef.current) clearInterval(pomRef.current);
     }
     return () => { if (pomRef.current) clearInterval(pomRef.current); };
   }, [pomRunning]);
 
-  React.useEffect(() => {
-    if (pomRunning && pomSeconds === 0) {
-      setPomRunning(false);
-      if (pomPhase === 'work') {
-        const next = (pomCycles + 1) % 4 === 0 ? 'long-break' : 'short-break';
-        setPomCycles(c => c + 1);
-        setPomPhase(next);
-        setPomSeconds(POMODORO_DURATIONS[next]);
-        setPomAlert(next === 'long-break' ? '🎉 Great work! Take a long 15-min break.' : '✅ Session done! Take a 5-min break.');
-      } else {
-        setPomPhase('work');
-        setPomSeconds(POMODORO_DURATIONS['work']);
-        setPomAlert('🍅 Break over! Time to focus.');
-      }
-    }
-  }, [pomSeconds, pomRunning]);
-
-  const pomReset = () => { setPomRunning(false); setPomPhase('work'); setPomSeconds(POMODORO_DURATIONS['work']); setPomCycles(0); };
+  const pomReset = () => {
+    setPomRunning(false);
+    setPomPhase('work');
+    setPomCycles(0);
+    pomPhaseRef.current = 'work';
+    pomCyclesRef.current = 0;
+    pomSecondsRef.current = POMODORO_DURATIONS['work'];
+    if (pomDisplayRef.current) pomDisplayRef.current.textContent = pomFormat(POMODORO_DURATIONS['work']);
+  };
   const pomFormat = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
   const pomPhaseColor: Record<PomodoroPhase, string> = { 'work': 'error.main', 'short-break': 'success.main', 'long-break': 'info.main' };
   const pomPhaseLabel: Record<PomodoroPhase, string> = { 'work': 'Focus', 'short-break': 'Break', 'long-break': 'Long Break' };
@@ -741,7 +771,7 @@ const Editor: React.FC<EditorProps> = ({
       >
         <Chip
           icon={<Timer />}
-          label={formatTime(sessionElapsed)}
+          label={<span ref={sessionDisplayRef}>{formatTime(0)}</span>}
           variant="outlined"
           size="small"
           sx={commonChipStyles}
@@ -1478,7 +1508,7 @@ const Editor: React.FC<EditorProps> = ({
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <Typography variant="body2" color={pomPhaseColor[pomPhase]} sx={{ fontVariantNumeric: 'tabular-nums', minWidth: 40, fontWeight: 600 }}>
-              {pomFormat(pomSeconds)}
+              <span ref={pomDisplayRef}>{pomFormat(POMODORO_DURATIONS['work'])}</span>
             </Typography>
             <Tooltip title={pomRunning ? 'Pause' : `Start ${pomPhaseLabel[pomPhase]}`}>
               <IconButton size="small" onClick={() => setPomRunning(r => !r)}>
