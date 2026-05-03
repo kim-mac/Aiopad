@@ -44,13 +44,6 @@ interface VoiceInputProps {
   onNoteCreated: (note: Note) => void;
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
-
 const VoiceInput: React.FC<VoiceInputProps> = ({ open, onClose, onNoteCreated }) => {
   const [isRecording, setIsRecording] = React.useState(false);
   const [transcript, setTranscript] = React.useState('');

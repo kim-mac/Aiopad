@@ -14,6 +14,12 @@ interface WysiwygEditorProps {
   children?: React.ReactNode;
 }
 
+type MarkdownStorage = {
+  markdown: {
+    getMarkdown: () => string;
+  };
+};
+
 const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
   content,
   onChange,
@@ -38,10 +44,14 @@ const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
     content: '',
     autofocus: autoFocus ? 'end' : false,
     onUpdate({ editor }) {
-      const md = editor.storage.markdown.getMarkdown();
+      const md = (editor.storage as unknown as MarkdownStorage).markdown.getMarkdown();
       onChange(md);
     },
   });
+
+  const getMarkdown = React.useCallback(() => {
+    return (editor?.storage as unknown as MarkdownStorage | undefined)?.markdown?.getMarkdown() ?? '';
+  }, [editor]);
 
   const prevContentRef = React.useRef<string>('');
 
@@ -49,10 +59,10 @@ const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
     if (!editor) return;
     if (content === prevContentRef.current) return;
     prevContentRef.current = content;
-    const currentMd = editor.storage.markdown.getMarkdown();
+    const currentMd = getMarkdown();
     if (currentMd === content) return;
     const { from, to } = editor.state.selection;
-    editor.commands.setContent(content, false);
+    editor.commands.setContent(content, { emitUpdate: false });
     try {
       editor.commands.setTextSelection({ from, to });
     } catch {}

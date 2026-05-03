@@ -16,7 +16,7 @@ interface Note {
   color?: string;
   isArchived?: boolean;
   isFavorite?: boolean;
-  type?: 'note' | 'todo';
+  type?: 'note' | 'todo' | 'handwriting';
   tag?: string;
   summary?: string;
   difficulty?: 'beginner' | 'intermediate' | 'advanced';

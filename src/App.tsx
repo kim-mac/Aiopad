@@ -18,7 +18,7 @@ interface Note {
   color?: string;
   isArchived?: boolean;
   isFavorite?: boolean;
-  type?: 'note' | 'todo';
+  type?: 'note' | 'todo' | 'handwriting';
   tag?: string;
   summary?: string;
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
@@ -60,12 +60,11 @@ function App() {
   const [fontSize, setFontSize] = React.useState(16);
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
 
-  // Save notes whenever they change
   React.useEffect(() => {
     saveNotes(notes);
   }, [notes]);
 
-  // Orbit extension bridge — receives notes sent from other tabs
+  // Orbit extension bridge - receives notes sent from other tabs
   React.useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -90,7 +89,6 @@ function App() {
     [themeVariant, mode]
   );
 
-  // Broadcast theme to Orbit extension whenever it changes
   React.useEffect(() => {
     window.dispatchEvent(new CustomEvent('aiopad:themeChanged', {
       detail: { variant: themeVariant, mode, fontFamily }
@@ -137,7 +135,6 @@ function App() {
   const handleNoteSelect = (noteId: string | null) => {
     const targetNote = notes.find(note => note.id === noteId);
     if (targetNote?.isLocked) {
-      // Don't select locked notes
       return;
     }
     setSelectedNote(noteId);
@@ -197,4 +194,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

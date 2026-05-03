@@ -1,4 +1,4 @@
-import { ThemeOptions } from '@mui/material';
+import { ThemeOptions, createTheme } from '@mui/material';
 
 export type ThemeVariant = 
   | 'ocean'
@@ -81,13 +81,61 @@ const themeColors = {
   },
 };
 
-export const getThemeOptions = (variant: ThemeVariant, mode: ColorMode): ThemeOptions => {
+export const getThemeOptions = (variant: ThemeVariant, mode: ColorMode) => {
   const colors = themeColors[variant][mode];
 
-  return {
+  return createTheme({
     palette: {
       mode,
-      ...colors,
+      primary: colors.primary,
+      background: colors.background,
+      text: colors.text,
+      divider: colors.divider,
+      // Add default Material-UI colors
+      secondary: {
+        main: colors.primary.main,
+      },
+      error: {
+        main: mode === 'dark' ? '#f44336' : '#d32f2f',
+      },
+      warning: {
+        main: mode === 'dark' ? '#ffa726' : '#ed6c02',
+      },
+      info: {
+        main: mode === 'dark' ? '#29b6f6' : '#0288d1',
+      },
+      success: {
+        main: mode === 'dark' ? '#66bb6a' : '#2e7d32',
+      },
+      common: {
+        black: '#000000',
+        white: '#ffffff',
+      },
+      grey: mode === 'dark' 
+        ? {
+            50: '#fafafa',
+            100: '#f5f5f5',
+            200: '#eeeeee',
+            300: '#e0e0e0',
+            400: '#bdbdbd',
+            500: '#9e9e9e',
+            600: '#757575',
+            700: '#616161',
+            800: '#424242',
+            900: '#212121',
+          }
+        : {
+            50: '#fafafa',
+            100: '#f5f5f5',
+            200: '#eeeeee',
+            300: '#e0e0e0',
+            400: '#bdbdbd',
+            500: '#9e9e9e',
+            600: '#757575',
+            700: '#616161',
+            800: '#424242',
+            900: '#212121',
+          },
     },
     typography: {
       fontFamily: '"JetBrains Mono", monospace',
@@ -136,5 +184,5 @@ export const getThemeOptions = (variant: ThemeVariant, mode: ColorMode): ThemeOp
     shape: {
       borderRadius: 8,
     },
-  };
+  });
 }; 
