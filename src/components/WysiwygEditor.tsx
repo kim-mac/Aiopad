@@ -59,8 +59,7 @@ const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
   return (
     <Box
       sx={{
-        flex: 1,
-        minHeight: 0,
+        minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
         overflowY: 'visible',
