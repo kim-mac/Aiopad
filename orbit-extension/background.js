@@ -35,19 +35,17 @@ async function sendToAiopad(text) {
   };
 
   if (aiopadTab) {
-    // Send to the content script running on the Aiopad tab — it dispatches the custom event
+    // Inject silently — don't switch to or focus the Aiopad tab
     try {
       await chrome.tabs.sendMessage(aiopadTab.id, { type: 'INJECT_NOTE', note: noteObj });
-      await chrome.tabs.update(aiopadTab.id, { active: true });
-      await chrome.windows.update(aiopadTab.windowId, { focused: true });
       return { ok: true };
     } catch (e) {
-      // Content script not ready yet — fall through to open new tab
+      // Content script not ready — fall through to open in background
     }
   }
 
-  // No Aiopad tab found — open one and inject after load
-  const newTab = await chrome.tabs.create({ url: cleanUrl });
+  // No Aiopad tab found — open one in the background without focusing it
+  const newTab = await chrome.tabs.create({ url: cleanUrl, active: false });
   await waitForTab(newTab.id);
   await chrome.tabs.sendMessage(newTab.id, { type: 'INJECT_NOTE', note: noteObj });
   return { ok: true };

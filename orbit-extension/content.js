@@ -88,6 +88,9 @@ function hideBubble() {
 document.addEventListener('selectionchange', () => {
   clearTimeout(selTimer);
   selTimer = setTimeout(() => {
+    // Never hide while the user is interacting with the bubble itself
+    if (bubble && bubble.contains(document.activeElement)) return;
+
     const sel  = window.getSelection();
     const text = sel ? sel.toString().trim() : '';
 
