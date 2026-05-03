@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
-import { Delete as DeleteIcon, OpenWith as MoveIcon, PhotoSizeSelectSmall as ResizeIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, OpenWith as MoveIcon } from '@mui/icons-material';
 
 export interface EmbeddedImage {
   id: string;
@@ -16,11 +16,12 @@ interface Props {
   onChange: (images: EmbeddedImage[]) => void;
 }
 
-const MIN_SIZE = 40;
+const MIN_SIZE = 60;
 
 const EmbeddedImageLayer: React.FC<Props> = ({ images, onChange }) => {
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
+  const leaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragRef = React.useRef<{
     startX: number;
     startY: number;
@@ -37,6 +38,17 @@ const EmbeddedImageLayer: React.FC<Props> = ({ images, onChange }) => {
 
   const deleteImage = (id: string) => {
     onChange(images.filter(img => img.id !== id));
+  };
+
+  const handleMouseEnter = (id: string) => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    setHoveredId(id);
+  };
+
+  const handleMouseLeave = (id: string) => {
+    leaveTimer.current = setTimeout(() => {
+      setHoveredId(prev => (prev === id ? null : prev));
+    }, 120);
   };
 
   const startInteraction = (e: React.MouseEvent, id: string, type: 'drag' | 'resize') => {
@@ -86,6 +98,10 @@ const EmbeddedImageLayer: React.FC<Props> = ({ images, onChange }) => {
     };
   }, [activeId, updateImage]);
 
+  React.useEffect(() => () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+  }, []);
+
   if (images.length === 0) return null;
 
   return (
@@ -107,8 +123,8 @@ const EmbeddedImageLayer: React.FC<Props> = ({ images, onChange }) => {
         return (
           <Box
             key={img.id}
-            onMouseEnter={() => setHoveredId(img.id)}
-            onMouseLeave={() => { if (!isActive) setHoveredId(null); }}
+            onMouseEnter={() => handleMouseEnter(img.id)}
+            onMouseLeave={() => handleMouseLeave(img.id)}
             sx={{
               position: 'absolute',
               left: img.x,
@@ -122,8 +138,10 @@ const EmbeddedImageLayer: React.FC<Props> = ({ images, onChange }) => {
               userSelect: 'none',
               transition: 'border-color 0.15s',
               boxSizing: 'border-box',
+              overflow: 'hidden',
             }}
           >
+            {/* Image itself — drag to move */}
             <Box
               component="img"
               src={img.src}
@@ -135,72 +153,74 @@ const EmbeddedImageLayer: React.FC<Props> = ({ images, onChange }) => {
                 objectFit: 'contain',
                 display: 'block',
                 cursor: isActive ? 'grabbing' : 'grab',
-                borderRadius: 0.5,
               }}
             />
 
-            {showControls && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: -38,
-                  left: 0,
-                  display: 'flex',
-                  gap: 0.25,
-                  bgcolor: 'background.paper',
-                  borderRadius: 1.5,
-                  boxShadow: 3,
-                  p: 0.5,
-                  zIndex: 20,
-                }}
-              >
-                <Tooltip title="Drag to move" placement="top">
-                  <IconButton
-                    size="small"
-                    onMouseDown={(e: React.MouseEvent) => startInteraction(e, img.id, 'drag')}
-                    sx={{ cursor: 'grab', p: 0.5 }}
-                  >
-                    <MoveIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Delete image" placement="top">
-                  <IconButton
-                    size="small"
-                    onClick={() => deleteImage(img.id)}
-                    color="error"
-                    sx={{ p: 0.5 }}
-                  >
-                    <DeleteIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            )}
+            {/* Toolbar overlay — pinned to top-left INSIDE the image */}
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 6,
+                left: 6,
+                display: 'flex',
+                gap: 0.25,
+                bgcolor: 'rgba(0,0,0,0.55)',
+                borderRadius: 1.5,
+                p: 0.25,
+                opacity: showControls ? 1 : 0,
+                transition: 'opacity 0.15s',
+                pointerEvents: showControls ? 'auto' : 'none',
+                zIndex: 2,
+              }}
+            >
+              <Tooltip title="Drag to move" placement="bottom">
+                <IconButton
+                  size="small"
+                  onMouseDown={(e: React.MouseEvent) => startInteraction(e, img.id, 'drag')}
+                  sx={{ cursor: 'grab', p: 0.5, color: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}
+                >
+                  <MoveIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Delete image" placement="bottom">
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); deleteImage(img.id); }}
+                  sx={{ p: 0.5, color: '#ff6b6b', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}
+                >
+                  <DeleteIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
 
-            <Tooltip title="Drag to resize" placement="bottom-end">
-              <Box
-                onMouseDown={(e: React.MouseEvent) => startInteraction(e, img.id, 'resize')}
-                sx={{
-                  position: 'absolute',
-                  bottom: -6,
-                  right: -6,
-                  width: 14,
-                  height: 14,
-                  bgcolor: 'primary.main',
-                  border: '2px solid',
-                  borderColor: 'background.paper',
-                  borderRadius: '3px',
-                  cursor: 'se-resize',
-                  opacity: showControls ? 1 : 0,
-                  transition: 'opacity 0.15s',
-                  zIndex: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <ResizeIcon sx={{ fontSize: 8, color: 'background.paper' }} />
-              </Box>
-            </Tooltip>
+            {/* Resize handle — bottom-right corner INSIDE the image */}
+            <Box
+              onMouseDown={(e: React.MouseEvent) => startInteraction(e, img.id, 'resize')}
+              sx={{
+                position: 'absolute',
+                bottom: 4,
+                right: 4,
+                width: 16,
+                height: 16,
+                bgcolor: 'rgba(0,0,0,0.55)',
+                border: '1.5px solid rgba(255,255,255,0.6)',
+                borderRadius: '4px',
+                cursor: 'se-resize',
+                opacity: showControls ? 1 : 0,
+                transition: 'opacity 0.15s',
+                zIndex: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Box sx={{
+                width: 6,
+                height: 6,
+                borderRight: '2px solid rgba(255,255,255,0.8)',
+                borderBottom: '2px solid rgba(255,255,255,0.8)',
+              }} />
+            </Box>
           </Box>
         );
       })}
