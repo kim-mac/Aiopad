@@ -1,8 +1,19 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "PHjuqcphpEisT6zByIb1C"
+uri = "file://attached_assets/orbit-project-banner.png"
+type = "image"
+title = "orbit project banner"
 
 [[outputs]]
 id = "OfEjjFBOJ_B1f8VRkdIA4"
 uri = "file://orbit-extension.zip"
 type = "unspecified"
 title = "Orbit Extension (latest)"
+
+[[outputs]]
+id = "ZL0KicjdUrFTgGhZy9OwQ"
+uri = "file://attached_assets/orbit-project-banner.png"
+type = "image"
+title = "Orbit — Project Banner"
