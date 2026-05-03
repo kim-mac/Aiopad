@@ -43,6 +43,8 @@ import {
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   Replay as ReplayIcon,
+  CenterFocusStrong as FocusModeIcon,
+  CloseFullscreen as ExitFocusIcon,
 } from '@mui/icons-material';
 import Toolbar from './Toolbar';
 import HandwritingCanvas from './HandwritingCanvas';
@@ -150,6 +152,9 @@ const Editor: React.FC<EditorProps> = ({
   const [showFlashcards, setShowFlashcards] = React.useState(false);
   const [showShare, setShowShare] = React.useState(false);
   const [showChat, setShowChat] = React.useState(false);
+
+  // Focus mode
+  const [focusMode, setFocusMode] = React.useState(false);
 
   // Real-time session elapsed ticker
   const [sessionElapsed, setSessionElapsed] = React.useState(0);
@@ -772,8 +777,18 @@ const Editor: React.FC<EditorProps> = ({
     );
   }
 
+  React.useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFocusMode(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focusMode]);
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{
+      display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
+      ...(focusMode ? { position: 'fixed', inset: 0, zIndex: 1300, bgcolor: 'background.default' } : {}),
+    }}>
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2, overflow: 'hidden' }}>
         <TextField
           value={note.title}
@@ -796,23 +811,25 @@ const Editor: React.FC<EditorProps> = ({
             },
           }}
         />
-        <Box
-          sx={{
-            mb: 2,
-            borderRadius: 1,
-            backgroundColor: 'background.paper',
-            boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 1px 4px rgba(0,0,0,0.05)',
-          }}
-        >
-          <Toolbar
-            content={note.content}
-            setContent={(content) => onNoteChange({ content })}
-            onFontChange={onFontChange}
-            isSidebarOpen={isSidebarOpen}
-            onSidebarToggle={onSidebarToggle}
-            noteTitle={note.title}
-          />
-        </Box>
+        {!focusMode && (
+          <Box
+            sx={{
+              mb: 2,
+              borderRadius: 1,
+              backgroundColor: 'background.paper',
+              boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 1px 4px rgba(0,0,0,0.05)',
+            }}
+          >
+            <Toolbar
+              content={note.content}
+              setContent={(content) => onNoteChange({ content })}
+              onFontChange={onFontChange}
+              isSidebarOpen={isSidebarOpen}
+              onSidebarToggle={onSidebarToggle}
+              noteTitle={note.title}
+            />
+          </Box>
+        )}
 
         {note.type === 'todo' ? (
           <Box
@@ -1415,6 +1432,11 @@ const Editor: React.FC<EditorProps> = ({
             <Tooltip title={showChat ? 'Close Chat' : 'Chat with Notes'}>
               <IconButton size="small" onClick={() => setShowChat((v) => !v)} color={showChat ? 'error' : 'primary'}>
                 <ChatIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={focusMode ? 'Exit Focus Mode (Esc)' : 'Focus Mode'}>
+              <IconButton size="small" onClick={() => setFocusMode(v => !v)} color={focusMode ? 'error' : 'primary'}>
+                {focusMode ? <ExitFocusIcon fontSize="small" /> : <FocusModeIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
           </Box>
