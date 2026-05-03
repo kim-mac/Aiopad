@@ -65,6 +65,26 @@ function App() {
     saveNotes(notes);
   }, [notes]);
 
+  // Orbit extension bridge — receives notes sent from other tabs
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || !detail.content) return;
+      const newNote: Note = {
+        ...detail,
+        lastModified: new Date(detail.lastModified || Date.now()),
+        createdAt: new Date(detail.createdAt || Date.now()),
+      };
+      setNotes((prev) => {
+        if (prev.some((n) => n.id === newNote.id)) return prev;
+        return [newNote, ...prev];
+      });
+      setSelectedNote(newNote.id);
+    };
+    window.addEventListener('orbit:addNote', handler);
+    return () => window.removeEventListener('orbit:addNote', handler);
+  }, []);
+
   const theme = React.useMemo(
     () => createTheme(getThemeOptions(themeVariant, mode)),
     [themeVariant, mode]

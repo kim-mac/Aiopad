@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbit Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 320px;
+      background: #0f0f1a;
+      color: rgba(255,255,255,0.88);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      padding: 0 0 16px;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1a1a3e, #12122a);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4f8ef7, #a855f7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .header-text h1 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .header-text p {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 1px;
+    }
+
+    .section {
+      padding: 16px 20px 0;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: rgba(255,255,255,0.9);
+      font-size: 12.5px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus { border-color: rgba(79,142,247,0.55); }
+    input::placeholder { color: rgba(255,255,255,0.25); }
+
+    .hint {
+      font-size: 11px;
+      color: rgba(255,255,255,0.35);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .hint a { color: #4f8ef7; text-decoration: none; }
+    .hint a:hover { text-decoration: underline; }
+
+    .save-btn {
+      display: block;
+      width: calc(100% - 40px);
+      margin: 16px 20px 0;
+      padding: 9px;
+      background: linear-gradient(135deg, #4f8ef7, #6366f1);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .save-btn:hover { opacity: 0.88; }
+
+    .status {
+      text-align: center;
+      font-size: 12px;
+      color: #4ade80;
+      height: 20px;
+      margin-top: 8px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .status.show { opacity: 1; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      margin: 16px 0 0;
+    }
+
+    .tip {
+      margin: 12px 20px 0;
+      padding: 10px 12px;
+      background: rgba(79,142,247,0.08);
+      border: 1px solid rgba(79,142,247,0.15);
+      border-radius: 8px;
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.5;
+    }
+
+    .tip strong { color: rgba(255,255,255,0.85); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">⊙</div>
+    <div class="header-text">
+      <h1>Orbit Settings</h1>
+      <p>Aiopad AI Companion</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Aiopad URL</div>
+    <input type="text" id="aiopad-url" placeholder="http://localhost:5000" />
+    <p class="hint">The URL where your Aiopad app is running.</p>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <div class="label">NVIDIA NIM API Key</div>
+    <input type="password" id="api-key" placeholder="nvapi-••••••••••••••••••••" />
+    <p class="hint">
+      Used for "Ask Orbit". Get yours at
+      <a href="https://build.nvidia.com" target="_blank">build.nvidia.com</a>.
+    </p>
+  </div>
+
+  <button class="save-btn" id="save-btn">Save Settings</button>
+  <div class="status" id="status">✓ Settings saved</div>
+
+  <div class="tip">
+    <strong>How to use:</strong> Select any text on a webpage — Orbit appears automatically.
+    Click <strong>Send to Aiopad</strong> to save it as a note, or <strong>Ask Orbit</strong>
+    to ask the AI a question about the selected text.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
