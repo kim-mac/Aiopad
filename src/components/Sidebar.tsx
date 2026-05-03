@@ -24,6 +24,8 @@ import {
   DialogActions,
   useTheme,
   Collapse,
+  Link,
+  Chip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -51,6 +53,9 @@ import {
   Image as ImageIcon,
   Link as LinkIcon,
   Mic as MicIcon,
+  Extension as ExtensionIcon,
+  FileDownload as DownloadIcon,
+  OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import YoutubeInput from './YoutubeInput';
 import PdfInput from './PdfInput';
@@ -160,6 +165,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [showImageInput, setShowImageInput] = React.useState(false);
   const [showUrlInput, setShowUrlInput] = React.useState(false);
   const [showVoiceInput, setShowVoiceInput] = React.useState(false);
+  const [showExtensionDialog, setShowExtensionDialog] = React.useState(false);
 
   const handleAddNoteMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAddNoteMenuAnchor(event.currentTarget);
@@ -438,6 +444,15 @@ const Sidebar: React.FC<SidebarProps> = ({
           <Typography variant="h6">Notes</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Get the Orbit browser extension">
+            <IconButton
+              onClick={() => setShowExtensionDialog(true)}
+              size="small"
+              sx={{ borderRadius: 1, color: 'primary.main' }}
+            >
+              <ExtensionIcon />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Add new note">
             <IconButton
               onClick={handleAddNoteMenuOpen}
@@ -1333,6 +1348,171 @@ const Sidebar: React.FC<SidebarProps> = ({
           setShowVoiceInput(false);
         }}
       />
+
+      {/* Extension download dialog */}
+      <Dialog
+        open={showExtensionDialog}
+        onClose={() => setShowExtensionDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2 } }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <ExtensionIcon color="primary" />
+            <Box>
+              <Typography variant="h6" sx={{ lineHeight: 1.2 }}>Orbit Browser Extension</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Your AI companion that follows you anywhere on the web
+              </Typography>
+            </Box>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent dividers sx={{ pt: 2 }}>
+          {/* Download button */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 2,
+              mb: 2.5,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'primary.main',
+              background: (t) =>
+                t.palette.mode === 'dark'
+                  ? 'linear-gradient(135deg, rgba(79,142,247,0.15) 0%, rgba(168,85,247,0.15) 100%)'
+                  : 'linear-gradient(135deg, rgba(79,142,247,0.08) 0%, rgba(168,85,247,0.08) 100%)',
+            }}
+          >
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>Download Orbit Extension</Typography>
+              <Typography variant="caption" color="text.secondary">ZIP file — load manually in Chrome / Edge</Typography>
+            </Box>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<DownloadIcon />}
+              href="https://drive.google.com/file/d/16fWnCMAwgc6PM4JsvSEZNotXi1N0aJZO/view?usp=sharing"
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}
+            >
+              Download ZIP
+            </Button>
+          </Box>
+
+          {/* Setup steps */}
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            How to install
+          </Typography>
+
+          {[
+            {
+              step: '1',
+              title: 'Download & unzip',
+              desc: 'Click the button above, download the ZIP file, then extract / unzip it to a folder on your computer.',
+            },
+            {
+              step: '2',
+              title: 'Open Extensions page',
+              desc: (
+                <>
+                  In Chrome or Edge, navigate to{' '}
+                  <Link href="chrome://extensions" underline="hover" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    chrome://extensions
+                  </Link>
+                  {' '}(paste it in the address bar).
+                </>
+              ),
+            },
+            {
+              step: '3',
+              title: 'Enable Developer Mode',
+              desc: 'Toggle the "Developer mode" switch in the top-right corner of the Extensions page.',
+            },
+            {
+              step: '4',
+              title: 'Load the extension',
+              desc: 'Click "Load unpacked", then select the folder you extracted in step 1.',
+            },
+            {
+              step: '5',
+              title: 'Pin Orbit to your toolbar',
+              desc: "Click the puzzle-piece icon in Chrome's toolbar, find Orbit, and click the pin icon so it's always visible.",
+            },
+            {
+              step: '6',
+              title: "Open this app in Orbit's popup",
+              desc: "Click the Orbit icon in the toolbar, paste this app's URL, then toggle Orbit on. A small glowing circle will follow your cursor on any page.",
+            },
+          ].map(({ step, title, desc }) => (
+            <Box
+              key={step}
+              sx={{
+                display: 'flex',
+                gap: 1.5,
+                mb: 1.5,
+                p: 1.5,
+                borderRadius: 1.5,
+                bgcolor: 'action.hover',
+              }}
+            >
+              <Chip
+                label={step}
+                size="small"
+                color="primary"
+                sx={{ fontWeight: 700, minWidth: 28, height: 28, borderRadius: '50%', flexShrink: 0, mt: 0.1 }}
+              />
+              <Box>
+                <Typography variant="body2" fontWeight={600}>{title}</Typography>
+                <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.25 }}>
+                  {desc}
+                </Typography>
+              </Box>
+            </Box>
+          ))}
+
+          <Box
+            sx={{
+              mt: 1,
+              p: 1.5,
+              borderRadius: 1.5,
+              bgcolor: 'warning.main',
+              opacity: 0.85,
+              display: 'flex',
+              gap: 1,
+              alignItems: 'flex-start',
+            }}
+          >
+            <Typography variant="caption" sx={{ color: 'warning.contrastText', fontWeight: 600 }}>
+              Note:&nbsp;
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'warning.contrastText' }}>
+              Manually loaded extensions are disabled whenever Chrome restarts. If that happens, just revisit
+              chrome://extensions and click "Enable" next to Orbit.
+            </Typography>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 2.5, py: 1.5 }}>
+          <Button
+            size="small"
+            startIcon={<OpenInNewIcon />}
+            href="https://drive.google.com/file/d/16fWnCMAwgc6PM4JsvSEZNotXi1N0aJZO/view?usp=sharing"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ textTransform: 'none', mr: 'auto' }}
+          >
+            Open in Google Drive
+          </Button>
+          <Button onClick={() => setShowExtensionDialog(false)} variant="contained" size="small" sx={{ textTransform: 'none' }}>
+            Done
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
