@@ -6,6 +6,12 @@ uri = "file://attached_assets/orbit-project-banner.png"
 type = "image"
 title = "orbit project banner"
 
+[[generated]]
+id = "romNlFE76IfyJEQblG3SM"
+uri = "file://attached_assets/orbit-landing-banner.png"
+type = "image"
+title = "orbit landing page banner"
+
 [[outputs]]
 id = "OfEjjFBOJ_B1f8VRkdIA4"
 uri = "file://orbit-extension.zip"
@@ -17,3 +23,9 @@ id = "ZL0KicjdUrFTgGhZy9OwQ"
 uri = "file://attached_assets/orbit-project-banner.png"
 type = "image"
 title = "Orbit — Project Banner"
+
+[[outputs]]
+id = "SgYDNGCEznTI2qRjAmdN2"
+uri = "file://attached_assets/orbit-landing-banner.png"
+type = "image"
+title = "Orbit — Landing Page Banner"
