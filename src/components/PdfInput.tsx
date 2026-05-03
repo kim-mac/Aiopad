@@ -41,39 +41,29 @@ interface PdfInputProps {
   onNoteCreated: (note: Note) => void;
 }
 
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 async function extractTextFromPDF(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
-  const uint8Array = new Uint8Array(arrayBuffer);
-  const decoder = new TextDecoder('latin1', { fatal: false });
-  const raw = decoder.decode(uint8Array);
+  const base64 = uint8ToBase64(new Uint8Array(arrayBuffer));
 
-  const textBlocks: string[] = [];
+  const res = await fetch('/api/extract-pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: base64 }),
+  });
 
-  const btEtRegex = /BT([\s\S]*?)ET/g;
-  let match;
-  while ((match = btEtRegex.exec(raw)) !== null) {
-    const block = match[1];
-    const tjRegex = /\(([^)]*)\)\s*Tj/g;
-    let tjMatch;
-    while ((tjMatch = tjRegex.exec(block)) !== null) {
-      const text = tjMatch[1].replace(/\\n/g, '\n').replace(/\\r/g, '').replace(/\\t/g, ' ');
-      if (text.trim()) textBlocks.push(text);
-    }
-    const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
-    let arrMatch;
-    while ((arrMatch = tjArrayRegex.exec(block)) !== null) {
-      const inner = arrMatch[1];
-      const strRegex = /\(([^)]*)\)/g;
-      let strMatch;
-      while ((strMatch = strRegex.exec(inner)) !== null) {
-        const text = strMatch[1].replace(/\\n/g, '\n').replace(/\\r/g, '').replace(/\\t/g, ' ');
-        if (text.trim()) textBlocks.push(text);
-      }
-    }
-  }
-
-  const joined = textBlocks.join(' ').replace(/\s{3,}/g, '\n\n').trim();
-  return joined;
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
+  if (!data.text || data.text.length < 30) throw new Error('No readable text found in this PDF.');
+  return data.text;
 }
 
 const PdfInput: React.FC<PdfInputProps> = ({ open, onClose, onNoteCreated }) => {

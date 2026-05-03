@@ -1,7 +1,7 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { execFile } from 'child_process';
-import { existsSync, readFileSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { IncomingMessage, ServerResponse } from 'http';
@@ -84,6 +84,92 @@ function stripHtml(html: string): string {
     .replace(/\s{3,}/g, '\n\n')
     .trim()
     .slice(0, 12000);
+}
+
+function readBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function pdfExtractPlugin(): Plugin {
+  return {
+    name: 'pdf-extract-api',
+    configureServer(server) {
+      server.middlewares.use('/api/extract-pdf', async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        let body: any;
+        try {
+          const raw = await readBody(req);
+          body = JSON.parse(raw.toString('utf8'));
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+          return;
+        }
+
+        const { data } = body;
+        if (!data || typeof data !== 'string') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing base64 data field' }));
+          return;
+        }
+
+        const tmpFile = path.join(tmpdir(), `pdf_${Date.now()}.pdf`);
+        try {
+          writeFileSync(tmpFile, Buffer.from(data, 'base64'));
+        } catch (e: any) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Could not write temp file: ${e.message}` }));
+          return;
+        }
+
+        const pyScript = `
+import sys, fitz
+try:
+    doc = fitz.open(sys.argv[1])
+    pages = []
+    for page in doc:
+        text = page.get_text("text")
+        if text.strip():
+            pages.append(text.strip())
+    print("\\n\\n".join(pages))
+except Exception as e:
+    print("ERROR:" + str(e), file=sys.stderr)
+    sys.exit(1)
+`;
+
+        execFile('python3', ['-c', pyScript, tmpFile], { timeout: 30000, maxBuffer: 5 * 1024 * 1024 }, (err, stdout, stderr) => {
+          try { unlinkSync(tmpFile); } catch {}
+
+          if (err || stderr?.startsWith('ERROR:')) {
+            const msg = stderr?.replace('ERROR:', '').trim() || err?.message || 'PDF extraction failed';
+            res.writeHead(422, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Could not read PDF: ${msg}` }));
+            return;
+          }
+
+          const text = stdout.trim();
+          if (text.length < 30) {
+            res.writeHead(422, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'No readable text found. The PDF may be scanned — try the Image → Note feature for scanned documents.' }));
+            return;
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ text: text.slice(0, 15000) }));
+        });
+      });
+    },
+  };
 }
 
 function fetchUrlPlugin(): Plugin {
@@ -238,7 +324,7 @@ function ytTranscriptPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), fetchUrlPlugin(), ytTranscriptPlugin()],
+  plugins: [react(), pdfExtractPlugin(), fetchUrlPlugin(), ytTranscriptPlugin()],
   server: {
     port: 5000,
     host: '0.0.0.0',
