@@ -1,104 +1,108 @@
 /* ── Orbit Content Script ─────────────────────────────────────────── */
-console.log('[Orbit] loaded ✓');
 
 /* ────────────────────────────────────────────────────────────────────
-   THEME PALETTE  (mirrors src/themes.ts + src/App.tsx)
+   THEME PALETTE  (mirrors src/themes.ts)
    ──────────────────────────────────────────────────────────────────── */
 const THEME_PALETTE = {
-  ocean: {
-    light: { bg: '#ffffff', pill: '#e3f2fd', border: '#90caf9', text: '#0d47a1', primary: '#0288d1', btnText: '#fff' },
-    dark:  { bg: '#1565c0', pill: '#0d47a1', border: '#1976d2', text: '#e3f2fd', primary: '#29b6f6', btnText: '#fff' },
-  },
-  forest: {
-    light: { bg: '#ffffff', pill: '#f1f8e9', border: '#a5d6a7', text: '#1b5e20', primary: '#2e7d32', btnText: '#fff' },
-    dark:  { bg: '#2e7d32', pill: '#1b5e20', border: '#388e3c', text: '#f1f8e9', primary: '#66bb6a', btnText: '#fff' },
-  },
-  sunset: {
-    light: { bg: '#ffffff', pill: '#fff3e0', border: '#ffcc80', text: '#e65100', primary: '#f57c00', btnText: '#fff' },
-    dark:  { bg: '#f57c00', pill: '#e65100', border: '#fb8c00', text: '#fff3e0', primary: '#ffb74d', btnText: '#000' },
-  },
-  lavender: {
-    light: { bg: '#ffffff', pill: '#f3e5f5', border: '#ce93d8', text: '#4a148c', primary: '#7b1fa2', btnText: '#fff' },
-    dark:  { bg: '#6a1b9a', pill: '#4a148c', border: '#7b1fa2', text: '#f3e5f5', primary: '#ba68c8', btnText: '#fff' },
-  },
-  blackwhite: {
-    light: { bg: '#ffffff', pill: '#f5f5f5', border: '#cccccc', text: '#000000', primary: '#000000', btnText: '#fff' },
-    dark:  { bg: '#111111', pill: '#000000', border: '#333333', text: '#ffffff', primary: '#ffffff', btnText: '#000' },
-  },
+  ocean:      { light: { bg:'#ffffff', pill:'#e3f2fd', border:'#90caf9', text:'#0d47a1', primary:'#0288d1', btntxt:'#fff' },
+                dark:  { bg:'#1565c0', pill:'#0d47a1', border:'#1976d2', text:'#e3f2fd', primary:'#29b6f6', btntxt:'#fff' } },
+  forest:     { light: { bg:'#ffffff', pill:'#f1f8e9', border:'#a5d6a7', text:'#1b5e20', primary:'#2e7d32', btntxt:'#fff' },
+                dark:  { bg:'#2e7d32', pill:'#1b5e20', border:'#388e3c', text:'#f1f8e9', primary:'#66bb6a', btntxt:'#fff' } },
+  sunset:     { light: { bg:'#ffffff', pill:'#fff3e0', border:'#ffcc80', text:'#e65100', primary:'#f57c00', btntxt:'#fff' },
+                dark:  { bg:'#f57c00', pill:'#e65100', border:'#fb8c00', text:'#fff3e0', primary:'#ffb74d', btntxt:'#000' } },
+  lavender:   { light: { bg:'#ffffff', pill:'#f3e5f5', border:'#ce93d8', text:'#4a148c', primary:'#7b1fa2', btntxt:'#fff' },
+                dark:  { bg:'#6a1b9a', pill:'#4a148c', border:'#7b1fa2', text:'#f3e5f5', primary:'#ba68c8', btntxt:'#fff' } },
+  blackwhite: { light: { bg:'#ffffff', pill:'#f5f5f5', border:'#cccccc', text:'#000000', primary:'#555555', btntxt:'#fff' },
+                dark:  { bg:'#111111', pill:'#000000', border:'#333333', text:'#ffffff', primary:'#aaaaaa', btntxt:'#000' } },
 };
 
 /* ────────────────────────────────────────────────────────────────────
    STATE
    ──────────────────────────────────────────────────────────────────── */
-let root      = null;
-let circle    = null;
-let panel     = null;
+let circleEl  = null;   // tiny dot following cursor
+let pillEl    = null;   // action panel at selection point
 let askRow    = null;
 let answerEl  = null;
+let sentEl    = null;
 
-let selectionText = '';
-let selTimer      = null;
+let selText   = '';     // current selected text
+let selTimer  = null;
+let isTyping  = false;  // user typing in orbit input
+let pillOpen  = false;  // pill currently visible
 
-let posX = window.innerWidth  - 60;
-let posY = window.innerHeight - 60;
+// Cursor tracking
+let curX = window.innerWidth  / 2;
+let curY = window.innerHeight / 2;
 
-let pinned    = false;   // stops cursor-following when true
-let minimized = false;   // circle hidden; only restored by page reload or future shortcut
+// Pill pinned position (set when selection is made)
+let pillX = 0;
+let pillY = 0;
 
+// Circle pinned (set on drag)
+let circlePinned = false;
+let circleX = window.innerWidth  - 40;
+let circleY = window.innerHeight - 40;
+
+// Drag state for pill
 let dragging   = false;
 let dragStartX = 0, dragStartY = 0;
 let dragOrigX  = 0, dragOrigY  = 0;
 let didDrag    = false;
 
-let isTyping   = false;  // user is actively typing in orbit input
+let askTimeout = null;
 
 /* ────────────────────────────────────────────────────────────────────
    THEME
    ──────────────────────────────────────────────────────────────────── */
 function applyTheme(variant, mode, fontFamily) {
   const c = (THEME_PALETTE[variant] || THEME_PALETTE.ocean)[mode] || THEME_PALETTE.ocean.dark;
-  if (!root) return;
+  const font = fontFamily || '"JetBrains Mono", monospace';
+  const root = document.documentElement;
   root.style.setProperty('--ob-bg',      c.bg);
   root.style.setProperty('--ob-pill',    c.pill);
   root.style.setProperty('--ob-border',  c.border);
   root.style.setProperty('--ob-text',    c.text);
   root.style.setProperty('--ob-primary', c.primary);
-  root.style.setProperty('--ob-btntxt',  c.btnText);
-  root.style.setProperty('--ob-font',    fontFamily || '"JetBrains Mono", monospace');
+  root.style.setProperty('--ob-btntxt',  c.btntxt);
+  root.style.setProperty('--ob-font',    font);
+  // Also update circle color directly
+  if (circleEl) circleEl.style.background = c.primary;
 }
 
-// Load stored theme on startup
 chrome.storage.local.get(
-  { orbitTheme: 'ocean', orbitMode: 'dark', orbitFont: '"JetBrains Mono", monospace' },
+  { orbitTheme:'ocean', orbitMode:'dark', orbitFont:'"JetBrains Mono", monospace' },
   ({ orbitTheme, orbitMode, orbitFont }) => applyTheme(orbitTheme, orbitMode, orbitFont)
 );
 
-// React to theme changes pushed by Aiopad (or any other tab via chrome.storage)
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (changes.orbitEnabled) {
+    const enabled = changes.orbitEnabled.newValue;
+    if (!enabled) shutdownOrbit();
+    else if (circleEl) circleEl.style.display = 'block';
+    return;
+  }
   if (changes.orbitTheme || changes.orbitMode || changes.orbitFont) {
     chrome.storage.local.get(
-      { orbitTheme: 'ocean', orbitMode: 'dark', orbitFont: '"JetBrains Mono", monospace' },
+      { orbitTheme:'ocean', orbitMode:'dark', orbitFont:'"JetBrains Mono", monospace' },
       ({ orbitTheme, orbitMode, orbitFont }) => applyTheme(orbitTheme, orbitMode, orbitFont)
     );
   }
 });
 
-// If this IS the Aiopad tab, listen for live theme changes and sync to chrome.storage
+// Live theme sync when on the Aiopad tab
 window.addEventListener('aiopad:themeChanged', (e) => {
   const { variant, mode, fontFamily } = e.detail || {};
-  chrome.runtime.sendMessage({ type: 'SYNC_THEME', variant, mode, fontFamily });
+  chrome.runtime.sendMessage({ type:'SYNC_THEME', variant, mode, fontFamily });
   applyTheme(variant, mode, fontFamily);
 });
 
-// Also attempt a one-time sync on load (catches already-open Aiopad tabs)
+// One-time sync if this IS the Aiopad tab
 (function syncIfAiopad() {
-  const variant    = localStorage.getItem('notepad-theme-variant');
-  const mode       = localStorage.getItem('notepad-color-mode');
+  const variant = localStorage.getItem('notepad-theme-variant');
+  const mode    = localStorage.getItem('notepad-color-mode');
   if (variant && mode) {
-    const fontFamily = '"JetBrains Mono", monospace';
-    chrome.runtime.sendMessage({ type: 'SYNC_THEME', variant, mode, fontFamily });
-    // applyTheme will be called once chrome.storage.onChanged fires
+    chrome.runtime.sendMessage({ type:'SYNC_THEME', variant, mode, fontFamily:'"JetBrains Mono", monospace' });
   }
 })();
 
@@ -106,111 +110,122 @@ window.addEventListener('aiopad:themeChanged', (e) => {
    BUILD DOM
    ──────────────────────────────────────────────────────────────────── */
 function init() {
-  if (document.getElementById('orbit-root')) return; // already mounted
+  // Check enabled flag first
+  chrome.storage.local.get({ orbitEnabled: true }, ({ orbitEnabled }) => {
+    if (!orbitEnabled) return;
+    buildDOM();
+  });
+}
 
-  root = document.createElement('div');
-  root.id = 'orbit-root';
+function buildDOM() {
+  if (document.getElementById('orbit-circle')) return;
 
-  root.innerHTML = `
-    <div id="orbit-panel">
-      <div class="orbit-pill">
-        <div class="orbit-drag-handle" id="orbit-drag-handle" title="Drag to move">&#9711;</div>
-        <button class="orbit-btn orbit-btn-send" id="orbit-send">&#128206; Send to Aiopad</button>
-        <div class="orbit-divider"></div>
-        <button class="orbit-btn orbit-btn-ask"  id="orbit-ask-btn">&#10022; Ask Orbit</button>
-        <button class="orbit-min-btn"            id="orbit-minimize" title="Minimize">&#8722;</button>
-      </div>
-      <div class="orbit-ask-row" id="orbit-ask-row">
-        <input  class="orbit-input"  id="orbit-input"  placeholder="Ask about this text…" />
-        <button class="orbit-submit" id="orbit-submit">Ask</button>
-      </div>
-      <div class="orbit-answer" id="orbit-answer"></div>
+  /* ── Circle ── */
+  circleEl = document.createElement('div');
+  circleEl.id = 'orbit-circle';
+  document.body.appendChild(circleEl);
+  setCirclePos(circleX, circleY);
+
+  /* ── Pill ── */
+  pillEl = document.createElement('div');
+  pillEl.id = 'orbit-pill';
+  pillEl.innerHTML = `
+    <div class="ob-row">
+      <div class="ob-handle" id="ob-handle">&#9711;</div>
+      <button class="ob-btn ob-btn-send" id="ob-send">&#128206; Send to Aiopad</button>
+      <div class="ob-sep"></div>
+      <button class="ob-btn ob-btn-ask"  id="ob-ask">&#10022; Ask Orbit</button>
+      <div class="ob-spacer"></div>
+      <button class="ob-icon-btn" id="ob-minimize" title="Minimize to circle">&#8722;</button>
+      <button class="ob-icon-btn" id="ob-close"    title="Close Orbit">&#215;</button>
     </div>
-    <div id="orbit-circle" title="Orbit — drag to move">&#9711;</div>
+    <div class="ob-sent-feedback" id="ob-sent">&#10003; Sent to Aiopad</div>
+    <div class="ob-ask-row" id="ob-ask-row">
+      <input class="ob-input" id="ob-input" placeholder="Ask about this text…" />
+      <button class="ob-submit" id="ob-submit">Ask</button>
+    </div>
+    <div class="ob-answer" id="ob-answer"></div>
   `;
+  document.body.appendChild(pillEl);
 
-  document.body.appendChild(root);
+  askRow   = pillEl.querySelector('#ob-ask-row');
+  answerEl = pillEl.querySelector('#ob-answer');
+  sentEl   = pillEl.querySelector('#ob-sent');
 
-  circle   = root.querySelector('#orbit-circle');
-  panel    = root.querySelector('#orbit-panel');
-  askRow   = root.querySelector('#orbit-ask-row');
-  answerEl = root.querySelector('#orbit-answer');
+  /* ── Button events ── */
+  pillEl.querySelector('#ob-send')    .addEventListener('mousedown', e => { e.preventDefault(); handleSend(); });
+  pillEl.querySelector('#ob-ask')     .addEventListener('mousedown', e => { e.preventDefault(); handleAskToggle(); });
+  pillEl.querySelector('#ob-submit')  .addEventListener('mousedown', e => { e.preventDefault(); handleAskSubmit(); });
+  pillEl.querySelector('#ob-minimize').addEventListener('mousedown', e => { e.preventDefault(); minimizeToBubble(); });
+  pillEl.querySelector('#ob-close')   .addEventListener('mousedown', e => { e.preventDefault(); closeOrbit(); });
 
-  setPos(posX, posY);
-  showCircle();
-
-  // Apply stored theme now that root exists
-  chrome.storage.local.get(
-    { orbitTheme: 'ocean', orbitMode: 'dark', orbitFont: '"JetBrains Mono", monospace' },
-    ({ orbitTheme, orbitMode, orbitFont }) => applyTheme(orbitTheme, orbitMode, orbitFont)
-  );
-
-  /* ── Button events (mousedown preserves page selection) ── */
-  root.querySelector('#orbit-send')    .addEventListener('mousedown', e => { e.preventDefault(); handleSend(); });
-  root.querySelector('#orbit-ask-btn') .addEventListener('mousedown', e => { e.preventDefault(); handleAskToggle(); });
-  root.querySelector('#orbit-submit')  .addEventListener('mousedown', e => { e.preventDefault(); handleAskSubmit(); });
-  root.querySelector('#orbit-minimize').addEventListener('mousedown', e => { e.preventDefault(); handleMinimize(); });
-
-  const inp = root.querySelector('#orbit-input');
+  const inp = pillEl.querySelector('#ob-input');
   inp.addEventListener('focus', () => { isTyping = true; });
   inp.addEventListener('blur',  () => { isTyping = false; });
   inp.addEventListener('keydown', e => {
     if (e.key === 'Enter')  { e.preventDefault(); handleAskSubmit(); }
-    if (e.key === 'Escape') { collapsePanel(); }
+    if (e.key === 'Escape') { minimizeToBubble(); }
   });
 
-  /* ── Drag — circle and panel handle both work ── */
-  circle.addEventListener('mousedown', onDragStart);
-  root.querySelector('#orbit-drag-handle').addEventListener('mousedown', onDragStart);
+  /* ── Drag pill via handle ── */
+  pillEl.querySelector('#ob-handle').addEventListener('mousedown', onDragStart);
+
+  /* ── Apply stored theme ── */
+  chrome.storage.local.get(
+    { orbitTheme:'ocean', orbitMode:'dark', orbitFont:'"JetBrains Mono", monospace' },
+    ({ orbitTheme, orbitMode, orbitFont }) => applyTheme(orbitTheme, orbitMode, orbitFont)
+  );
 }
 
 /* ────────────────────────────────────────────────────────────────────
-   POSITIONING
+   CIRCLE POSITIONING  — follows cursor until dragged
    ──────────────────────────────────────────────────────────────────── */
-function setPos(x, y) {
-  const m = 6;
-  posX = Math.max(m, Math.min(x, window.innerWidth  - 46));
-  posY = Math.max(m, Math.min(y, window.innerHeight - 46));
-  if (root) { root.style.left = posX + 'px'; root.style.top = posY + 'px'; }
+function setCirclePos(x, y) {
+  const m = 4;
+  circleX = Math.max(m, Math.min(x, window.innerWidth  - 20));
+  circleY = Math.max(m, Math.min(y, window.innerHeight - 20));
+  if (circleEl) { circleEl.style.left = circleX + 'px'; circleEl.style.top = circleY + 'px'; }
 }
 
-/* ── Cursor following ── */
 document.addEventListener('mousemove', e => {
-  if (!root || minimized || pinned || dragging) return;
-  setPos(e.clientX + 16, e.clientY + 16);
+  curX = e.clientX;
+  curY = e.clientY;
+  if (!circlePinned && circleEl && circleEl.style.display !== 'none') {
+    setCirclePos(e.clientX + 14, e.clientY + 14);
+  }
 }, { passive: true });
 
 /* ────────────────────────────────────────────────────────────────────
-   DRAG
+   PILL POSITIONING  — anchored below cursor where selection happened
+   ──────────────────────────────────────────────────────────────────── */
+function setPillPos(x, y) {
+  const pw = 300; // approx pill width
+  const vw = window.innerWidth;
+  // Keep pill on screen horizontally
+  pillX = Math.max(8, Math.min(x, vw - pw - 8));
+  pillY = y;
+  if (pillEl) { pillEl.style.left = pillX + 'px'; pillEl.style.top = pillY + 'px'; }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   PILL DRAG
    ──────────────────────────────────────────────────────────────────── */
 function onDragStart(e) {
   if (e.button !== 0) return;
-  e.preventDefault();
-  e.stopPropagation();
-
-  dragging   = true;
-  didDrag    = false;
-  dragStartX = e.clientX;
-  dragStartY = e.clientY;
-  dragOrigX  = posX;
-  dragOrigY  = posY;
-
-  circle.classList.add('dragging');
+  e.preventDefault(); e.stopPropagation();
+  dragging = true; didDrag = false;
+  dragStartX = e.clientX; dragStartY = e.clientY;
+  dragOrigX  = pillX;     dragOrigY  = pillY;
   window.addEventListener('mousemove', onDragMove);
   window.addEventListener('mouseup',   onDragEnd);
 }
-
 function onDragMove(e) {
-  const dx = e.clientX - dragStartX;
-  const dy = e.clientY - dragStartY;
+  const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
   if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag = true;
-  if (didDrag) setPos(dragOrigX + dx, dragOrigY + dy);
+  if (didDrag) setPillPos(dragOrigX + dx, dragOrigY + dy);
 }
-
 function onDragEnd() {
   dragging = false;
-  if (didDrag) pinned = true;
-  circle.classList.remove('dragging');
   window.removeEventListener('mousemove', onDragMove);
   window.removeEventListener('mouseup',   onDragEnd);
 }
@@ -218,34 +233,57 @@ function onDragEnd() {
 /* ────────────────────────────────────────────────────────────────────
    VISIBILITY STATES
    ──────────────────────────────────────────────────────────────────── */
-function showCircle() {
-  if (minimized) return; // minimize is sticky — only the button un-minimizes
-  circle.style.display = 'flex';
-  panel.classList.remove('visible');
+function showPill() {
+  // Position pill below cursor
+  setPillPos(curX + 8, curY + 22);
+  pillEl.classList.add('visible');
+  pillOpen = true;
+  // Hide circle while pill is open to avoid overlap
+  if (circleEl) circleEl.style.display = 'none';
 }
 
-function expandPanel() {
-  if (minimized) return;
-  pinned = true; // freeze while panel is open
-  circle.style.display = 'none';
-  panel.classList.add('visible');
+function hidePill() {
+  if (!pillEl) return;
+  pillEl.classList.remove('visible');
+  pillOpen = false;
+  resetPillUI();
 }
 
-function collapsePanel() {
-  // Reset ask UI
-  askRow.classList.remove('open');
-  answerEl.classList.remove('open');
-  answerEl.textContent = '';
-  const inp = root && root.querySelector('#orbit-input');
+function resetPillUI() {
+  if (!pillEl) return;
+  const inp = pillEl.querySelector('#ob-input');
   if (inp) { inp.value = ''; inp.blur(); }
+  if (askRow) askRow.classList.remove('open');
+  if (answerEl) { answerEl.classList.remove('open'); answerEl.textContent = ''; }
+  if (sentEl)   sentEl.classList.remove('show');
+  const sendBtn = pillEl.querySelector('#ob-send');
+  if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '&#128206; Send to Aiopad'; }
+  const subBtn = pillEl.querySelector('#ob-submit');
+  if (subBtn) { subBtn.disabled = false; subBtn.textContent = 'Ask'; }
+  clearTimeout(askTimeout);
   isTyping = false;
-  showCircle(); // respects minimized guard
 }
 
-function handleMinimize() {
-  minimized = true;
-  circle.style.display = 'none';
-  panel.classList.remove('visible');
+function minimizeToBubble() {
+  hidePill();
+  // Restore circle at current cursor position
+  if (circleEl) {
+    setCirclePos(curX + 14, curY + 14);
+    circleEl.style.display = 'block';
+    circlePinned = false;
+  }
+}
+
+function closeOrbit() {
+  hidePill();
+  if (circleEl) circleEl.style.display = 'none';
+  // Persist disabled so popup can toggle back on
+  chrome.storage.local.set({ orbitEnabled: false });
+}
+
+function shutdownOrbit() {
+  hidePill();
+  if (circleEl) circleEl.style.display = 'none';
 }
 
 /* ────────────────────────────────────────────────────────────────────
@@ -254,40 +292,40 @@ function handleMinimize() {
 document.addEventListener('selectionchange', () => {
   clearTimeout(selTimer);
   selTimer = setTimeout(() => {
-    // Don't process while user is actively typing in orbit's input
-    if (isTyping) return;
+    if (isTyping || dragging) return;
 
     const sel  = window.getSelection();
     const text = sel ? sel.toString().trim() : '';
 
-    if (!text || text.length < 3) {
-      collapsePanel();
+    if (!text || text.length < 2) {
+      // Only collapse if pill is open; don't touch closed state
+      if (pillOpen) minimizeToBubble();
       return;
     }
 
-    selectionText = text;
-    expandPanel();
-  }, 150);
+    selText = text;
+    showPill();
+  }, 160);
 });
 
 /* ────────────────────────────────────────────────────────────────────
    SEND TO AIOPAD
    ──────────────────────────────────────────────────────────────────── */
 function handleSend() {
-  if (!selectionText) return;
-  const sendBtn = root.querySelector('#orbit-send');
+  if (!selText) return;
+  const sendBtn = pillEl.querySelector('#ob-send');
   sendBtn.disabled    = true;
   sendBtn.textContent = '…';
 
-  chrome.runtime.sendMessage({ type: 'SEND_TO_AIOPAD', text: selectionText }, () => {
-    sendBtn.disabled    = false;
-    sendBtn.innerHTML   = '&#128206; Send to Aiopad';
-
-    // Collapse panel and flash a green tick on the circle
-    collapsePanel();
-    circle.style.display = 'flex';
-    circle.classList.add('sent');
-    setTimeout(() => circle.classList.remove('sent'), 2200);
+  chrome.runtime.sendMessage({ type:'SEND_TO_AIOPAD', text: selText }, () => {
+    sendBtn.disabled  = false;
+    sendBtn.innerHTML = '&#128206; Send to Aiopad';
+    // Show green tick inside the pill
+    sentEl.classList.add('show');
+    setTimeout(() => {
+      sentEl.classList.remove('show');
+      minimizeToBubble();
+    }, 2000);
   });
 }
 
@@ -296,32 +334,42 @@ function handleSend() {
    ──────────────────────────────────────────────────────────────────── */
 function handleAskToggle() {
   const open = askRow.classList.contains('open');
-  if (!open) {
-    askRow.classList.add('open');
-    setTimeout(() => { const inp = root.querySelector('#orbit-input'); if (inp) inp.focus(); }, 40);
-  } else {
+  if (open) {
     askRow.classList.remove('open');
     answerEl.classList.remove('open');
+  } else {
+    askRow.classList.add('open');
+    setTimeout(() => pillEl.querySelector('#ob-input').focus(), 40);
   }
 }
 
 function handleAskSubmit() {
-  const inp      = root.querySelector('#orbit-input');
+  const inp      = pillEl.querySelector('#ob-input');
   const question = inp ? inp.value.trim() : '';
-  if (!question || !selectionText) return;
+  if (!question || !selText) return;
 
-  const btn = root.querySelector('#orbit-submit');
-  btn.disabled    = true;
-  btn.textContent = '…';
+  const subBtn = pillEl.querySelector('#ob-submit');
+  subBtn.disabled    = true;
+  subBtn.textContent = '…';
   answerEl.classList.remove('open');
 
-  // Blur so selectionchange guard releases after reply arrives
-  if (inp) inp.blur();
+  // Blur to release the isTyping guard
+  inp.blur();
   isTyping = false;
 
-  chrome.runtime.sendMessage({ type: 'ASK_ORBIT', text: selectionText, question }, resp => {
-    btn.disabled    = false;
-    btn.textContent = 'Ask';
+  // Safety timeout — re-enable button if no response in 30s
+  clearTimeout(askTimeout);
+  askTimeout = setTimeout(() => {
+    subBtn.disabled    = false;
+    subBtn.textContent = 'Ask';
+    answerEl.textContent = '⚠ Request timed out.';
+    answerEl.classList.add('open');
+  }, 30000);
+
+  chrome.runtime.sendMessage({ type:'ASK_ORBIT', text: selText, question }, resp => {
+    clearTimeout(askTimeout);
+    subBtn.disabled    = false;
+    subBtn.textContent = 'Ask';
     answerEl.textContent = (resp && resp.answer)
       ? resp.answer
       : '⚠ ' + ((resp && resp.error) || 'No response.');
