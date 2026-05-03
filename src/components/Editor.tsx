@@ -761,6 +761,13 @@ const Editor: React.FC<EditorProps> = ({
     );
   };
 
+  React.useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFocusMode(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focusMode]);
+
   if (!note) {
     return (
       <Box
@@ -776,13 +783,6 @@ const Editor: React.FC<EditorProps> = ({
       </Box>
     );
   }
-
-  React.useEffect(() => {
-    if (!focusMode) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFocusMode(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [focusMode]);
 
   return (
     <Box sx={{
