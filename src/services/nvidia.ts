@@ -1,26 +1,16 @@
-const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
+const NVIDIA_BASE_URL = '/api/nvidia';
 const DEFAULT_MODEL = 'nvidia/llama-3.3-nemotron-super-49b-v1';
-
-function getApiKey(): string {
-  return import.meta.env.VITE_NVIDIA_API_KEY || '';
-}
 
 export async function callNvidia(
   model: string = DEFAULT_MODEL,
   messages: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }>,
   options?: { max_tokens?: number; temperature?: number }
 ): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    return 'Error: NVIDIA API key is not configured. Please add VITE_NVIDIA_API_KEY to your .env file.';
-  }
-
   try {
     const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model,
@@ -126,17 +116,11 @@ export async function chatWithNotes(
 }
 
 export async function analyzeImage(base64DataUrl: string): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    return 'Error: NVIDIA API key is not configured.';
-  }
-
   try {
     const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'microsoft/phi-3.5-vision-instruct',

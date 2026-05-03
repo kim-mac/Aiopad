@@ -132,6 +132,19 @@ export default defineConfig({
     port: 5000,
     host: '0.0.0.0',
     allowedHosts: true,
+    proxy: {
+      '/api/nvidia': {
+        target: 'https://integrate.api.nvidia.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace('/api/nvidia', '/v1'),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            const key = process.env.VITE_NVIDIA_API_KEY || '';
+            proxyReq.setHeader('Authorization', `Bearer ${key}`);
+          });
+        },
+      },
+    },
   },
   resolve: {
     dedupe: ['react', 'react-dom'],
