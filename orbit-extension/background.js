@@ -9,7 +9,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === 'ASK_ORBIT') {
-    askOrbit(msg.text, msg.question).then(sendResponse).catch(err => sendResponse({ error: err.message }));
+    askOrbit(msg.context, msg.messages).then(sendResponse).catch(err => sendResponse({ error: err.message }));
     return true;
   }
   if (msg.type === 'SYNC_THEME') {
@@ -100,14 +100,18 @@ function waitForTab(tabId) {
 }
 
 /* ── Ask Orbit via NVIDIA NIM ─────────────────────────────────────── */
-async function askOrbit(selectedText, question) {
+async function askOrbit(context, messages) {
   const { apiKey } = await chrome.storage.local.get({ apiKey: '' });
 
   if (!apiKey) {
-    return { error: 'No API key set — open Orbit Settings (click the ⊙ toolbar icon) and save your NVIDIA NIM key.' };
+    return { error: 'No API key set — open Orbit Settings and save your NVIDIA NIM key.' };
   }
 
-  const prompt = `You are Orbit, a concise AI assistant. The user selected this text on a webpage:\n\n"${selectedText.slice(0, 800)}"\n\nQuestion: ${question}\n\nAnswer concisely in 2-4 sentences.`;
+  // System message includes the selected text as context
+  const systemMsg = {
+    role: 'system',
+    content: `You are Orbit, a concise and helpful AI assistant embedded in a browser extension. The user has selected the following text on a webpage as context for this conversation:\n\n"""${context.slice(0, 1000)}"""\n\nAnswer questions about this text clearly and concisely. You may engage in multi-turn conversation. Keep responses focused and helpful.`,
+  };
 
   try {
     const res = await fetch(NVIDIA_API_URL, {
@@ -118,9 +122,9 @@ async function askOrbit(selectedText, question) {
       },
       body: JSON.stringify({
         model:       NVIDIA_MODEL,
-        messages:    [{ role: 'user', content: prompt }],
-        max_tokens:  300,
-        temperature: 0.5,
+        messages:    [systemMsg, ...messages],
+        max_tokens:  512,
+        temperature: 0.6,
         stream:      false,
       }),
     });

@@ -25,10 +25,11 @@ let askRow    = null;
 let answerEl  = null;
 let sentEl    = null;
 
-let selText   = '';     // current selected text
-let selTimer  = null;
-let isTyping  = false;  // user typing in orbit input
-let pillOpen  = false;  // pill currently visible
+let selText     = '';     // current selected text
+let selTimer    = null;
+let isTyping    = false;  // user typing in orbit input
+let pillOpen    = false;  // pill currently visible
+let chatHistory = [];     // [{ role: 'user'|'assistant', content: string }]
 
 // Cursor tracking
 let curX = window.innerWidth  / 2;
@@ -140,17 +141,18 @@ function buildDOM() {
       <button class="ob-icon-btn" id="ob-close"    title="Close Orbit">&#215;</button>
     </div>
     <div class="ob-sent-feedback" id="ob-sent">&#10003; Sent to Aiopad</div>
-    <div class="ob-ask-row" id="ob-ask-row">
-      <input class="ob-input" id="ob-input" placeholder="Ask about this text…" />
-      <button class="ob-submit" id="ob-submit">Ask</button>
+    <div class="ob-chat-panel" id="ob-chat-panel">
+      <div class="ob-chat-window" id="ob-chat-window"></div>
+      <div class="ob-chat-input-row">
+        <input class="ob-input" id="ob-input" placeholder="Ask about this text…" />
+        <button class="ob-submit" id="ob-submit" title="Send">&#8593;</button>
+      </div>
     </div>
-    <div class="ob-answer" id="ob-answer"></div>
   `;
   document.body.appendChild(pillEl);
 
-  askRow   = pillEl.querySelector('#ob-ask-row');
-  answerEl = pillEl.querySelector('#ob-answer');
-  sentEl   = pillEl.querySelector('#ob-sent');
+  askRow  = pillEl.querySelector('#ob-chat-panel');
+  sentEl  = pillEl.querySelector('#ob-sent');
 
   /* ── Button events ── */
   pillEl.querySelector('#ob-send')    .addEventListener('mousedown', e => { e.preventDefault(); handleSend(); });
@@ -163,7 +165,7 @@ function buildDOM() {
   inp.addEventListener('focus', () => { isTyping = true; });
   inp.addEventListener('blur',  () => { isTyping = false; });
   inp.addEventListener('keydown', e => {
-    if (e.key === 'Enter')  { e.preventDefault(); handleAskSubmit(); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAskSubmit(); }
     if (e.key === 'Escape') { minimizeToBubble(); }
   });
 
@@ -253,13 +255,16 @@ function resetPillUI() {
   if (!pillEl) return;
   const inp = pillEl.querySelector('#ob-input');
   if (inp) { inp.value = ''; inp.blur(); }
+  // Close chat panel and wipe history
   if (askRow) askRow.classList.remove('open');
-  if (answerEl) { answerEl.classList.remove('open'); answerEl.textContent = ''; }
-  if (sentEl)   sentEl.classList.remove('show');
+  const chatWin = pillEl.querySelector('#ob-chat-window');
+  if (chatWin) chatWin.innerHTML = '';
+  chatHistory = [];
+  if (sentEl) sentEl.classList.remove('show');
   const sendBtn = pillEl.querySelector('#ob-send');
   if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '&#128206; Send to Aiopad'; }
   const subBtn = pillEl.querySelector('#ob-submit');
-  if (subBtn) { subBtn.disabled = false; subBtn.textContent = 'Ask'; }
+  if (subBtn) { subBtn.disabled = false; subBtn.innerHTML = '&#8593;'; }
   clearTimeout(askTimeout);
   isTyping = false;
 }
@@ -330,17 +335,47 @@ function handleSend() {
 }
 
 /* ────────────────────────────────────────────────────────────────────
-   ASK ORBIT
+   ASK ORBIT — multi-turn chat
    ──────────────────────────────────────────────────────────────────── */
 function handleAskToggle() {
   const open = askRow.classList.contains('open');
   if (open) {
     askRow.classList.remove('open');
-    answerEl.classList.remove('open');
   } else {
     askRow.classList.add('open');
     setTimeout(() => pillEl.querySelector('#ob-input').focus(), 40);
   }
+}
+
+/* Append a bubble to the chat window */
+function appendBubble(role, text) {
+  const chatWin = pillEl.querySelector('#ob-chat-window');
+  const bubble  = document.createElement('div');
+  bubble.className = role === 'user' ? 'ob-msg ob-msg-user' : 'ob-msg ob-msg-ai';
+  bubble.textContent = text;
+  chatWin.appendChild(bubble);
+  chatWin.scrollTop = chatWin.scrollHeight;
+  return bubble;
+}
+
+/* Show / update typing indicator */
+function showTyping() {
+  const chatWin = pillEl.querySelector('#ob-chat-window');
+  let el = chatWin.querySelector('.ob-typing');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'ob-msg ob-msg-ai ob-typing';
+    el.innerHTML = '<span></span><span></span><span></span>';
+    chatWin.appendChild(el);
+    chatWin.scrollTop = chatWin.scrollHeight;
+  }
+  return el;
+}
+
+function removeTyping() {
+  const chatWin = pillEl.querySelector('#ob-chat-window');
+  const el = chatWin && chatWin.querySelector('.ob-typing');
+  if (el) el.remove();
 }
 
 function handleAskSubmit() {
@@ -349,32 +384,51 @@ function handleAskSubmit() {
   if (!question || !selText) return;
 
   const subBtn = pillEl.querySelector('#ob-submit');
-  subBtn.disabled    = true;
-  subBtn.textContent = '…';
-  answerEl.classList.remove('open');
+  subBtn.disabled  = true;
+  inp.value        = '';
 
-  // Blur to release the isTyping guard
+  // Show user bubble immediately
+  appendBubble('user', question);
+
+  // Add to history
+  chatHistory.push({ role: 'user', content: question });
+
+  // Show typing indicator
+  showTyping();
+
+  // Blur to release isTyping guard, then refocus after response
   inp.blur();
   isTyping = false;
 
-  // Safety timeout — re-enable button if no response in 30s
+  // Safety timeout
   clearTimeout(askTimeout);
   askTimeout = setTimeout(() => {
-    subBtn.disabled    = false;
-    subBtn.textContent = 'Ask';
-    answerEl.textContent = '⚠ Request timed out.';
-    answerEl.classList.add('open');
+    removeTyping();
+    appendBubble('assistant', '⚠ Request timed out. Please try again.');
+    subBtn.disabled = false;
+    inp.focus();
   }, 30000);
 
-  chrome.runtime.sendMessage({ type:'ASK_ORBIT', text: selText, question }, resp => {
-    clearTimeout(askTimeout);
-    subBtn.disabled    = false;
-    subBtn.textContent = 'Ask';
-    answerEl.textContent = (resp && resp.answer)
-      ? resp.answer
-      : '⚠ ' + ((resp && resp.error) || 'No response.');
-    answerEl.classList.add('open');
-  });
+  chrome.runtime.sendMessage(
+    { type: 'ASK_ORBIT', context: selText, messages: chatHistory },
+    resp => {
+      clearTimeout(askTimeout);
+      removeTyping();
+      subBtn.disabled = false;
+
+      const answer = (resp && resp.answer)
+        ? resp.answer
+        : '⚠ ' + ((resp && resp.error) || 'No response.');
+
+      appendBubble('assistant', answer);
+
+      // Append AI reply to history
+      chatHistory.push({ role: 'assistant', content: answer });
+
+      // Refocus input for follow-up
+      setTimeout(() => { inp.focus(); }, 50);
+    }
+  );
 }
 
 /* ────────────────────────────────────────────────────────────────────
