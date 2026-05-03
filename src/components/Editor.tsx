@@ -1330,7 +1330,7 @@ const Editor: React.FC<EditorProps> = ({
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             {note.type !== 'todo' && !isHandwritingMode && <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />}
             <Tooltip title="Generate Flashcards">
-              <IconButton size="small" onClick={() => setShowFlashcards(true)} color="warning">
+              <IconButton size="small" onClick={() => setShowFlashcards(true)} color="primary">
                 <FlashcardIcon fontSize="small" />
               </IconButton>
             </Tooltip>

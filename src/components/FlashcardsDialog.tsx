@@ -99,7 +99,7 @@ const FlashcardsDialog: React.FC<FlashcardsDialogProps> = ({
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
-        <FlashcardIcon color="warning" />
+        <FlashcardIcon color="primary" />
         Flashcards — {noteTitle}
       </DialogTitle>
 
