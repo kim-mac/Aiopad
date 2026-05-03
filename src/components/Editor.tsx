@@ -151,6 +151,13 @@ const Editor: React.FC<EditorProps> = ({
   const [showShare, setShowShare] = React.useState(false);
   const [showChat, setShowChat] = React.useState(false);
 
+  // Real-time session elapsed ticker
+  const [sessionElapsed, setSessionElapsed] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setSessionElapsed(Math.floor((Date.now() - typingMetrics.sessionStart) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [typingMetrics.sessionStart]);
+
   // Pomodoro state
   type PomodoroPhase = 'work' | 'short-break' | 'long-break';
   const POMODORO_DURATIONS: Record<PomodoroPhase, number> = { 'work': 25 * 60, 'short-break': 5 * 60, 'long-break': 15 * 60 };
@@ -569,10 +576,10 @@ const Editor: React.FC<EditorProps> = ({
   };
 
   const formatTime = (seconds: number): string => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${hrs > 0 ? `${hrs}h ` : ''}${mins}m ${secs}s`;
+    const hrs = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    const mins = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+    const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${hrs}:${mins}:${secs}`;
   };
 
   const updateTypingSpeed = (newContent: string, oldContent: string) => {
@@ -688,7 +695,7 @@ const Editor: React.FC<EditorProps> = ({
       >
         <Chip
           icon={<Timer />}
-          label={formatTime(Math.floor((Date.now() - typingMetrics.sessionStart) / 1000))}
+          label={formatTime(sessionElapsed)}
           variant="outlined"
           size="small"
           sx={commonChipStyles}
