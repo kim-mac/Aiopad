@@ -323,25 +323,103 @@ function ytTranscriptPlugin(): Plugin {
   };
 }
 
+function nvidiaProxyPlugin(): Plugin {
+  // Keys in priority order — skips empty/undefined entries
+  const API_KEYS = [
+    process.env.VITE_NVIDIA_API_KEY,
+    process.env.VITE_NVIDIA_API_KEY_2,
+    process.env.VITE_NVIDIA_API_KEY_3,
+  ].filter(Boolean) as string[];
+
+  return {
+    name: 'nvidia-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/nvidia', async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        let bodyBuf: Buffer;
+        try { bodyBuf = await readBody(req); } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Could not read request body' }));
+          return;
+        }
+
+        // Build the target path — strip the /api/nvidia prefix
+        const targetPath = '/v1' + (req.url ?? '/chat/completions');
+
+        // Try each key in turn; move to next on 429 or 401
+        let lastStatus = 500;
+        let lastBody   = '';
+
+        for (let i = 0; i < API_KEYS.length; i++) {
+          const key = API_KEYS[i];
+
+          const result = await new Promise<{ status: number; body: string }>((resolve) => {
+            const options = {
+              hostname: 'integrate.api.nvidia.com',
+              port: 443,
+              path: targetPath,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`,
+                'Content-Length': bodyBuf.length,
+              },
+            };
+
+            const proxyReq = https.request(options, (proxyRes) => {
+              const chunks: Buffer[] = [];
+              proxyRes.on('data', (c: Buffer) => chunks.push(c));
+              proxyRes.on('end', () => resolve({
+                status: proxyRes.statusCode ?? 500,
+                body: Buffer.concat(chunks).toString('utf8'),
+              }));
+            });
+
+            proxyReq.on('error', (err: Error) => resolve({ status: 500, body: JSON.stringify({ error: err.message }) }));
+            proxyReq.write(bodyBuf);
+            proxyReq.end();
+          });
+
+          lastStatus = result.status;
+          lastBody   = result.body;
+
+          // Success — forward the response
+          if (result.status < 400) {
+            res.writeHead(result.status, { 'Content-Type': 'application/json' });
+            res.end(result.body);
+            return;
+          }
+
+          // Rate-limited or unauthorised — try next key
+          if (result.status === 429 || result.status === 401) {
+            console.warn(`[nvidia-proxy] Key ${i + 1} returned ${result.status} — trying next key…`);
+            continue;
+          }
+
+          // Any other error — don't retry
+          break;
+        }
+
+        // All keys exhausted or non-retryable error
+        res.writeHead(lastStatus, { 'Content-Type': 'application/json' });
+        res.end(lastBody);
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), pdfExtractPlugin(), fetchUrlPlugin(), ytTranscriptPlugin()],
+  plugins: [react(), pdfExtractPlugin(), fetchUrlPlugin(), ytTranscriptPlugin(), nvidiaProxyPlugin()],
   server: {
     port: 5000,
     host: '0.0.0.0',
     allowedHosts: true,
-    proxy: {
-      '/api/nvidia': {
-        target: 'https://integrate.api.nvidia.com',
-        changeOrigin: true,
-        rewrite: (p) => p.replace('/api/nvidia', '/v1'),
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            const key = process.env.VITE_NVIDIA_API_KEY || '';
-            proxyReq.setHeader('Authorization', `Bearer ${key}`);
-          });
-        },
-      },
-    },
+    proxy: {},
   },
   resolve: {
     dedupe: ['react', 'react-dom'],
