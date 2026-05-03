@@ -1,14 +1,23 @@
 /* ── Orbit Content Script ─────────────────────────────────────────── */
+console.log('[Orbit] content script loaded ✓');
 
 let bubble        = null;
 let askRow        = null;
 let answerPanel   = null;
 let selectionText = '';
+let selTimer      = null;
+let mouseX        = 0;
+let mouseY        = 0;
 
-/* ── Build bubble (once) ──────────────────────────────────────────── */
+/* Track mouse position at all times */
+document.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+}, true);
+
+/* ── Build bubble DOM (once) ──────────────────────────────────────── */
 function buildBubble() {
   if (bubble) return;
-
   const el = document.createElement('div');
   el.id = 'orbit-bubble';
   el.innerHTML = `
@@ -19,7 +28,7 @@ function buildBubble() {
       <button class="orbit-btn orbit-btn-ask" id="orbit-ask-btn">&#10022; Ask Orbit</button>
     </div>
     <div class="orbit-ask-row" id="orbit-ask-row">
-      <input class="orbit-input" id="orbit-input" placeholder="Ask about the selected text…" />
+      <input class="orbit-input" id="orbit-input" placeholder="Ask about this text…" />
       <button class="orbit-submit" id="orbit-submit">Ask</button>
     </div>
     <div class="orbit-answer" id="orbit-answer"></div>
@@ -29,50 +38,56 @@ function buildBubble() {
   askRow      = document.getElementById('orbit-ask-row');
   answerPanel = document.getElementById('orbit-answer');
 
-  document.getElementById('orbit-send').addEventListener('mousedown', e => { e.preventDefault(); handleSend(); });
+  /* Use mousedown so click doesn't clear the selection first */
+  document.getElementById('orbit-send').addEventListener('mousedown',    e => { e.preventDefault(); handleSend(); });
   document.getElementById('orbit-ask-btn').addEventListener('mousedown', e => { e.preventDefault(); handleAskToggle(); });
-  document.getElementById('orbit-submit').addEventListener('mousedown', e => { e.preventDefault(); handleAskSubmit(); });
+  document.getElementById('orbit-submit').addEventListener('mousedown',  e => { e.preventDefault(); handleAskSubmit(); });
   document.getElementById('orbit-input').addEventListener('keydown', e => {
     if (e.key === 'Enter')  handleAskSubmit();
     if (e.key === 'Escape') hideBubble();
   });
+
+  console.log('[Orbit] bubble DOM built ✓');
 }
 
-/* ── Show ─────────────────────────────────────────────────────────── */
-function showBubble(viewportRect) {
+/* ── Show at a given viewport coordinate ─────────────────────────── */
+function showBubbleAt(x, y) {
   buildBubble();
 
-  // Reset panels
   askRow.style.display      = 'none';
   answerPanel.style.display = 'none';
   answerPanel.textContent   = '';
   const inp = document.getElementById('orbit-input');
   if (inp) inp.value = '';
 
-  // Position: centred above selection, clamped to viewport
-  const margin  = 10;
-  const estW    = 310;  // approximate bubble width
-  const estH    = 46;   // approximate bubble height
+  const margin = 10;
+  const estW   = 310;
+  const estH   = 46;
+  const vw     = window.innerWidth;
+  const vh     = window.innerHeight;
 
-  const selMidX = viewportRect.left + viewportRect.width / 2;
-  let left = selMidX - estW / 2;
-  left = Math.max(margin, Math.min(left, window.innerWidth  - estW - margin));
+  let left = x - estW / 2;
+  left = Math.max(margin, Math.min(left, vw - estW - margin));
 
-  let top = viewportRect.top - estH - 10;
-  if (top < margin) top = viewportRect.bottom + 10;   // flip below if no room
+  let top = y - estH - 14;
+  if (top < margin) top = y + 14;
+  top = Math.max(margin, Math.min(top, vh - estH - margin));
 
   bubble.style.left    = left + 'px';
   bubble.style.top     = top  + 'px';
   bubble.style.display = 'block';
+
+  console.log('[Orbit] bubble shown at', left, top);
 }
 
 function hideBubble() {
   if (bubble) bubble.style.display = 'none';
 }
 
-/* ── Selection listener ───────────────────────────────────────────── */
-document.addEventListener('mouseup', () => {
-  setTimeout(() => {
+/* ── Selection detection via selectionchange ──────────────────────── */
+document.addEventListener('selectionchange', () => {
+  clearTimeout(selTimer);
+  selTimer = setTimeout(() => {
     const sel  = window.getSelection();
     const text = sel ? sel.toString().trim() : '';
 
@@ -81,22 +96,27 @@ document.addEventListener('mouseup', () => {
       return;
     }
 
-    if (!sel.rangeCount) return;
     selectionText = text;
+    console.log('[Orbit] selection detected:', text.slice(0, 40));
 
-    // getBoundingClientRect() returns VIEWPORT coordinates → correct for position:fixed
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
-    showBubble(rect);
-  }, 30);
+    /* Use the end of the selection range for position, fall back to mouse */
+    if (sel.rangeCount > 0) {
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      if (rect.width > 0 || rect.height > 0) {
+        showBubbleAt(rect.left + rect.width / 2, rect.top);
+        return;
+      }
+    }
+    showBubbleAt(mouseX, mouseY);
+  }, 200);
 });
 
-/* Hide on click outside */
+/* Hide when clicking outside the bubble */
 document.addEventListener('mousedown', e => {
-  if (bubble && bubble.style.display !== 'none' && !bubble.contains(e.target)) {
-    // Give button mousedown handlers a chance to fire first
-    setTimeout(hideBubble, 150);
+  if (bubble && bubble.style.display === 'block' && !bubble.contains(e.target)) {
+    setTimeout(hideBubble, 200);
   }
-});
+}, true);
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') hideBubble();
@@ -113,24 +133,22 @@ function handleSend() {
 
 /* ── Ask Orbit ────────────────────────────────────────────────────── */
 function handleAskToggle() {
-  const visible = askRow.style.display === 'flex';
-  askRow.style.display = visible ? 'none' : 'flex';
-  if (!visible) setTimeout(() => document.getElementById('orbit-input').focus(), 50);
+  const open = askRow.style.display === 'flex';
+  askRow.style.display = open ? 'none' : 'flex';
+  if (!open) setTimeout(() => document.getElementById('orbit-input').focus(), 50);
 }
 
 function handleAskSubmit() {
   const question = document.getElementById('orbit-input').value.trim();
   if (!question || !selectionText) return;
-
   const btn = document.getElementById('orbit-submit');
   btn.disabled    = true;
   btn.textContent = '…';
   answerPanel.style.display = 'none';
-
   chrome.runtime.sendMessage({ type: 'ASK_ORBIT', text: selectionText, question }, resp => {
     btn.disabled    = false;
     btn.textContent = 'Ask';
-    answerPanel.textContent   = (resp && resp.answer) ? resp.answer : '⚠ ' + ((resp && resp.error) || 'No response. Check API key in Orbit Settings.');
+    answerPanel.textContent   = (resp && resp.answer) ? resp.answer : '⚠ ' + ((resp && resp.error) || 'No response.');
     answerPanel.style.display = 'block';
   });
 }
@@ -143,8 +161,8 @@ function showToast(msg) {
     t.id = 'orbit-toast';
     document.body.appendChild(t);
   }
-  t.textContent = msg;
-  t.style.opacity   = '1';
+  t.textContent   = msg;
+  t.style.opacity = '1';
   t.style.transform = 'translateY(0)';
   setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; }, 2500);
 }
