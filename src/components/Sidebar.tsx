@@ -483,31 +483,31 @@ const Sidebar: React.FC<SidebarProps> = ({
               <ListItemIcon>
                 <YouTubeIcon fontSize="small" color="error" />
               </ListItemIcon>
-              <ListItemText primary="🎬 YouTube → Note" secondary="Paste a YouTube link" />
+              <ListItemText primary="YouTube → Note" secondary="Paste a YouTube link" />
             </MenuItem>
             <MenuItem onClick={() => { setShowPdfInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
                 <PdfIcon fontSize="small" color="error" />
               </ListItemIcon>
-              <ListItemText primary="📄 PDF → Note" secondary="Upload a PDF document" />
+              <ListItemText primary="PDF → Note" secondary="Upload a PDF document" />
             </MenuItem>
             <MenuItem onClick={() => { setShowImageInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
                 <ImageIcon fontSize="small" color="primary" />
               </ListItemIcon>
-              <ListItemText primary="🖼️ Image → Note" secondary="Upload a photo or screenshot" />
+              <ListItemText primary="Image → Note" secondary="Upload a photo or screenshot" />
             </MenuItem>
             <MenuItem onClick={() => { setShowUrlInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
                 <LinkIcon fontSize="small" color="primary" />
               </ListItemIcon>
-              <ListItemText primary="🔗 URL → Note" secondary="Paste any webpage link" />
+              <ListItemText primary="URL → Note" secondary="Paste any webpage link" />
             </MenuItem>
             <MenuItem onClick={() => { setShowVoiceInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
                 <MicIcon fontSize="small" color="error" />
               </ListItemIcon>
-              <ListItemText primary="🎤 Voice → Note" secondary="Record and transcribe speech" />
+              <ListItemText primary="Voice → Note" secondary="Record and transcribe speech" />
             </MenuItem>
           </Menu>
           <Tooltip title="Toggle selection mode">
