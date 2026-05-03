@@ -43,16 +43,11 @@ interface UrlInputProps {
 }
 
 async function fetchUrlContent(url: string): Promise<string> {
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-  const res = await fetch(proxyUrl);
-  if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
-  const html = await res.text();
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  ['script', 'style', 'nav', 'header', 'footer', 'aside', 'noscript', 'iframe'].forEach((tag) => {
-    div.querySelectorAll(tag).forEach((el) => el.remove());
-  });
-  return (div.innerText || div.textContent || '').replace(/\s{3,}/g, '\n\n').trim().slice(0, 10000);
+  const res = await fetch(`/api/fetch-url?url=${encodeURIComponent(url)}`);
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
+  if (!data.content || data.content.length < 100) throw new Error('Page returned no readable content.');
+  return data.content;
 }
 
 const UrlInput: React.FC<UrlInputProps> = ({ open, onClose, onNoteCreated }) => {
