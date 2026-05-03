@@ -23,6 +23,8 @@ import {
   InputLabel,
   ToggleButton,
   ToggleButtonGroup,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { 
   Speed as SpeedIcon, 
@@ -149,25 +151,46 @@ const Editor: React.FC<EditorProps> = ({
   const [showShare, setShowShare] = React.useState(false);
   const [showChat, setShowChat] = React.useState(false);
 
-  // Stopwatch state
-  const [swElapsed, setSwElapsed] = React.useState(0);
-  const [swRunning, setSwRunning] = React.useState(false);
-  const swRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  // Pomodoro state
+  type PomodoroPhase = 'work' | 'short-break' | 'long-break';
+  const POMODORO_DURATIONS: Record<PomodoroPhase, number> = { 'work': 25 * 60, 'short-break': 5 * 60, 'long-break': 15 * 60 };
+  const [pomRunning, setPomRunning] = React.useState(false);
+  const [pomPhase, setPomPhase] = React.useState<PomodoroPhase>('work');
+  const [pomSeconds, setPomSeconds] = React.useState(POMODORO_DURATIONS['work']);
+  const [pomCycles, setPomCycles] = React.useState(0);
+  const [pomAlert, setPomAlert] = React.useState<string | null>(null);
+  const pomRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   React.useEffect(() => {
-    if (swRunning) {
-      swRef.current = setInterval(() => setSwElapsed(e => e + 1), 1000);
+    if (pomRunning) {
+      pomRef.current = setInterval(() => setPomSeconds(s => Math.max(0, s - 1)), 1000);
     } else {
-      if (swRef.current) clearInterval(swRef.current);
+      if (pomRef.current) clearInterval(pomRef.current);
     }
-    return () => { if (swRef.current) clearInterval(swRef.current); };
-  }, [swRunning]);
+    return () => { if (pomRef.current) clearInterval(pomRef.current); };
+  }, [pomRunning]);
 
-  const swFormat = (s: number) => {
-    const m = Math.floor(s / 60).toString().padStart(2, '0');
-    const sec = (s % 60).toString().padStart(2, '0');
-    return `${m}:${sec}`;
-  };
+  React.useEffect(() => {
+    if (pomRunning && pomSeconds === 0) {
+      setPomRunning(false);
+      if (pomPhase === 'work') {
+        const next = (pomCycles + 1) % 4 === 0 ? 'long-break' : 'short-break';
+        setPomCycles(c => c + 1);
+        setPomPhase(next);
+        setPomSeconds(POMODORO_DURATIONS[next]);
+        setPomAlert(next === 'long-break' ? '🎉 Great work! Take a long 15-min break.' : '✅ Session done! Take a 5-min break.');
+      } else {
+        setPomPhase('work');
+        setPomSeconds(POMODORO_DURATIONS['work']);
+        setPomAlert('🍅 Break over! Time to focus.');
+      }
+    }
+  }, [pomSeconds, pomRunning]);
+
+  const pomReset = () => { setPomRunning(false); setPomPhase('work'); setPomSeconds(POMODORO_DURATIONS['work']); setPomCycles(0); };
+  const pomFormat = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+  const pomPhaseColor: Record<PomodoroPhase, string> = { 'work': 'error.main', 'short-break': 'success.main', 'long-break': 'info.main' };
+  const pomPhaseLabel: Record<PomodoroPhase, string> = { 'work': 'Focus', 'short-break': 'Break', 'long-break': 'Long Break' };
 
   const getWordCount = (text: string) => {
     return text.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -1350,17 +1373,22 @@ const Editor: React.FC<EditorProps> = ({
               </>
             )}
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Tooltip title={swRunning ? 'Pause' : 'Start'}>
-              <IconButton size="small" onClick={() => setSwRunning(r => !r)} color="primary">
-                {swRunning ? <PauseIcon sx={{ fontSize: 16 }} /> : <PlayIcon sx={{ fontSize: 16 }} />}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+            <Tooltip title={`Pomodoro — ${pomPhaseLabel[pomPhase]} (cycle ${pomCycles + 1})`}>
+              <Typography variant="caption" sx={{ color: pomPhaseColor[pomPhase], fontWeight: 700, mr: 0.5, cursor: 'default', userSelect: 'none' }}>
+                🍅
+              </Typography>
+            </Tooltip>
+            <Typography variant="body2" color={pomPhaseColor[pomPhase]} sx={{ fontVariantNumeric: 'tabular-nums', minWidth: 40, fontWeight: 600 }}>
+              {pomFormat(pomSeconds)}
+            </Typography>
+            <Tooltip title={pomRunning ? 'Pause' : `Start ${pomPhaseLabel[pomPhase]}`}>
+              <IconButton size="small" onClick={() => setPomRunning(r => !r)}>
+                {pomRunning ? <PauseIcon sx={{ fontSize: 15 }} /> : <PlayIcon sx={{ fontSize: 15 }} />}
               </IconButton>
             </Tooltip>
-            <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>
-              {swFormat(swElapsed)}
-            </Typography>
-            <Tooltip title="Reset">
-              <IconButton size="small" onClick={() => { setSwRunning(false); setSwElapsed(0); }} color="default">
+            <Tooltip title="Reset Pomodoro">
+              <IconButton size="small" onClick={pomReset}>
                 <ReplayIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </Tooltip>
@@ -1409,6 +1437,17 @@ const Editor: React.FC<EditorProps> = ({
           onClose={() => setShowChat(false)}
         />
       )}
+
+      <Snackbar
+        open={!!pomAlert}
+        autoHideDuration={5000}
+        onClose={() => setPomAlert(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setPomAlert(null)} severity="info" sx={{ width: '100%' }}>
+          {pomAlert}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
