@@ -38,6 +38,9 @@ import {
   Style as FlashcardIcon,
   Share as ShareIcon,
   Chat as ChatIcon,
+  PlayArrow as PlayIcon,
+  Pause as PauseIcon,
+  Replay as ReplayIcon,
 } from '@mui/icons-material';
 import Toolbar from './Toolbar';
 import HandwritingCanvas from './HandwritingCanvas';
@@ -145,6 +148,26 @@ const Editor: React.FC<EditorProps> = ({
   const [showFlashcards, setShowFlashcards] = React.useState(false);
   const [showShare, setShowShare] = React.useState(false);
   const [showChat, setShowChat] = React.useState(false);
+
+  // Stopwatch state
+  const [swElapsed, setSwElapsed] = React.useState(0);
+  const [swRunning, setSwRunning] = React.useState(false);
+  const swRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  React.useEffect(() => {
+    if (swRunning) {
+      swRef.current = setInterval(() => setSwElapsed(e => e + 1), 1000);
+    } else {
+      if (swRef.current) clearInterval(swRef.current);
+    }
+    return () => { if (swRef.current) clearInterval(swRef.current); };
+  }, [swRunning]);
+
+  const swFormat = (s: number) => {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  };
 
   const getWordCount = (text: string) => {
     return text.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -1326,6 +1349,21 @@ const Editor: React.FC<EditorProps> = ({
                 )}
               </>
             )}
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Tooltip title={swRunning ? 'Pause' : 'Start'}>
+              <IconButton size="small" onClick={() => setSwRunning(r => !r)} color="primary">
+                {swRunning ? <PauseIcon sx={{ fontSize: 16 }} /> : <PlayIcon sx={{ fontSize: 16 }} />}
+              </IconButton>
+            </Tooltip>
+            <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>
+              {swFormat(swElapsed)}
+            </Typography>
+            <Tooltip title="Reset">
+              <IconButton size="small" onClick={() => { setSwRunning(false); setSwElapsed(0); }} color="default">
+                <ReplayIcon sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Tooltip>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             {note.type !== 'todo' && !isHandwritingMode && <SpeedIndicator wpm={typingMetrics.wpm} isTyping={isTyping} />}
