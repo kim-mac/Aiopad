@@ -1,187 +1,51 @@
-/* ── Orbit root ───────────────────────────────────────────────────── */
+/* ── Google Font (matches Aiopad default) ─────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ── Root & CSS variables (overridden by JS applyTheme) ──────────── */
 #orbit-root {
+  --ob-bg:      #1565c0;
+  --ob-pill:    #0d47a1;
+  --ob-border:  #1976d2;
+  --ob-text:    #e3f2fd;
+  --ob-primary: #29b6f6;
+  --ob-btntxt:  #fff;
+  --ob-font:    'JetBrains Mono', monospace;
+
   position: fixed;
   z-index: 2147483647;
   pointer-events: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--ob-font);
 }
 
 /* ── Circle ───────────────────────────────────────────────────────── */
 #orbit-circle {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4f8ef7 0%, #a855f7 100%);
+  background: var(--ob-primary);
+  border: 2px solid color-mix(in srgb, var(--ob-primary) 60%, #fff);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: grab;
   pointer-events: auto;
-  box-shadow: 0 3px 14px rgba(79,142,247,0.45);
+  box-shadow: 0 3px 14px color-mix(in srgb, var(--ob-primary) 60%, transparent);
   transition: transform 0.15s, box-shadow 0.15s;
   user-select: none;
-  font-size: 16px;
-  color: #fff;
+  font-size: 18px;
+  color: var(--ob-btntxt);
+  position: relative;
 }
 
 #orbit-circle:hover {
   transform: scale(1.12);
-  box-shadow: 0 5px 20px rgba(79,142,247,0.6);
+  box-shadow: 0 5px 22px color-mix(in srgb, var(--ob-primary) 75%, transparent);
 }
 
-#orbit-circle.dragging { cursor: grabbing; }
+#orbit-circle.dragging { cursor: grabbing; transform: scale(1.05); }
 
-/* ── Expanded panel ───────────────────────────────────────────────── */
-#orbit-panel {
-  position: absolute;
-  bottom: 44px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: none;
-  flex-direction: column;
-  background: #12112a;
-  border: 1px solid rgba(255,255,255,0.13);
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.55);
-  pointer-events: auto;
-  min-width: 280px;
-  white-space: nowrap;
-}
-
-#orbit-panel.visible { display: flex; }
-
-/* ── Panel header row ─────────────────────────────────────────────── */
-.orbit-pill {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 8px;
-  background: #1a1a2e;
-}
-
-.orbit-pill-logo {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #4f8ef7, #a855f7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: #fff;
-  flex-shrink: 0;
-  margin-right: 2px;
-  cursor: grab;
-  user-select: none;
-}
-
-.orbit-btn {
-  padding: 5px 11px;
-  border: none;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.orbit-btn-send {
-  background: linear-gradient(135deg, #4f8ef7, #6366f1);
-  color: #fff;
-}
-.orbit-btn-send:hover { filter: brightness(1.12); }
-
-.orbit-btn-ask {
-  background: rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.9);
-}
-.orbit-btn-ask:hover { background: rgba(255,255,255,0.18); }
-
-.orbit-divider {
-  width: 1px;
-  height: 16px;
-  background: rgba(255,255,255,0.1);
-  margin: 0 1px;
-  flex-shrink: 0;
-}
-
-.orbit-minimize {
-  margin-left: auto;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6);
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-family: inherit;
-}
-.orbit-minimize:hover { background: rgba(255,80,80,0.25); color: #ff6b6b; }
-
-/* ── Ask row ──────────────────────────────────────────────────────── */
-.orbit-ask-row {
-  display: none;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background: #0f0f20;
-  border-top: 1px solid rgba(255,255,255,0.07);
-}
-.orbit-ask-row.open { display: flex; }
-
-.orbit-input {
-  flex: 1;
-  min-width: 160px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 8px;
-  color: #fff;
-  font-size: 12px;
-  font-family: inherit;
-  padding: 5px 10px;
-  outline: none;
-}
-.orbit-input::placeholder { color: rgba(255,255,255,0.3); }
-.orbit-input:focus { border-color: rgba(79,142,247,0.55); }
-
-.orbit-submit {
-  padding: 5px 12px;
-  background: linear-gradient(135deg, #a855f7, #6366f1);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-}
-.orbit-submit:disabled { opacity: 0.4; cursor: default; }
-
-/* ── Answer ───────────────────────────────────────────────────────── */
-.orbit-answer {
-  display: none;
-  padding: 10px 14px;
-  background: #0f0f20;
-  border-top: 1px solid rgba(255,255,255,0.07);
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: rgba(255,255,255,0.85);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-width: 320px;
-}
-.orbit-answer.open { display: block; }
-
-/* ── Tick overlay on circle ───────────────────────────────────────── */
+/* Sent tick flash */
+#orbit-circle.sent { background: #22c55e !important; color: #fff; border-color: #16a34a; }
 #orbit-circle.sent::after {
   content: '✓';
   position: absolute;
@@ -189,36 +53,174 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  color: #fff;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  font-size: 18px;
   border-radius: 50%;
-  animation: orbit-tick-out 1.6s forwards;
+  animation: orbit-fade-out 2.2s forwards;
 }
-
-@keyframes orbit-tick-out {
+@keyframes orbit-fade-out {
   0%   { opacity: 1; }
-  70%  { opacity: 1; }
+  75%  { opacity: 1; }
   100% { opacity: 0; }
 }
 
-/* ── Toast ────────────────────────────────────────────────────────── */
-#orbit-toast {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 2147483647;
-  background: #1a1a2e;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px;
-  padding: 9px 16px;
-  font-size: 13px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color: rgba(255,255,255,0.9);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 0.2s, transform 0.2s;
-  pointer-events: none;
+/* ── Expanded panel ───────────────────────────────────────────────── */
+#orbit-panel {
+  position: absolute;
+  bottom: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  flex-direction: column;
+  background: var(--ob-bg);
+  border: 1px solid var(--ob-border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  pointer-events: auto;
+  min-width: 288px;
+  white-space: nowrap;
+  font-family: var(--ob-font);
 }
-#orbit-toast.show { opacity: 1; transform: translateY(0); }
+
+#orbit-panel.visible { display: flex; }
+
+/* ── Pill row ─────────────────────────────────────────────────────── */
+.orbit-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 9px;
+  background: var(--ob-pill);
+}
+
+/* Drag handle (logo dot in panel) */
+.orbit-drag-handle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ob-primary);
+  color: var(--ob-btntxt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+  margin-right: 3px;
+}
+.orbit-drag-handle:active { cursor: grabbing; }
+
+/* Buttons */
+.orbit-btn {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: var(--ob-font);
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: filter 0.12s;
+}
+
+.orbit-btn-send {
+  background: var(--ob-primary);
+  color: var(--ob-btntxt);
+}
+.orbit-btn-send:hover:not(:disabled) { filter: brightness(1.14); }
+.orbit-btn-send:disabled { opacity: 0.5; cursor: default; }
+
+.orbit-btn-ask {
+  background: color-mix(in srgb, var(--ob-text) 15%, transparent);
+  color: var(--ob-text);
+  border: 1px solid color-mix(in srgb, var(--ob-text) 20%, transparent);
+}
+.orbit-btn-ask:hover { background: color-mix(in srgb, var(--ob-text) 25%, transparent); }
+
+.orbit-divider {
+  width: 1px;
+  height: 16px;
+  background: color-mix(in srgb, var(--ob-text) 20%, transparent);
+  margin: 0 1px;
+  flex-shrink: 0;
+}
+
+/* Minimize button */
+.orbit-min-btn {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: color-mix(in srgb, var(--ob-text) 12%, transparent);
+  color: var(--ob-text);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--ob-font);
+  transition: background 0.12s;
+}
+.orbit-min-btn:hover { background: #ef444430; color: #f87171; }
+
+/* ── Ask row ──────────────────────────────────────────────────────── */
+.orbit-ask-row {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  background: color-mix(in srgb, var(--ob-pill) 60%, var(--ob-bg));
+  border-top: 1px solid var(--ob-border);
+}
+.orbit-ask-row.open { display: flex; }
+
+.orbit-input {
+  flex: 1;
+  min-width: 160px;
+  background: color-mix(in srgb, var(--ob-text) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ob-text) 20%, transparent);
+  border-radius: 8px;
+  color: var(--ob-text);
+  font-size: 11.5px;
+  font-family: var(--ob-font);
+  padding: 5px 10px;
+  outline: none;
+}
+.orbit-input::placeholder { color: color-mix(in srgb, var(--ob-text) 45%, transparent); }
+.orbit-input:focus { border-color: var(--ob-primary); }
+
+.orbit-submit {
+  padding: 5px 12px;
+  background: var(--ob-primary);
+  color: var(--ob-btntxt);
+  border: none;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: var(--ob-font);
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+.orbit-submit:hover:not(:disabled) { filter: brightness(1.14); }
+.orbit-submit:disabled { opacity: 0.45; cursor: default; }
+
+/* ── Answer area ──────────────────────────────────────────────────── */
+.orbit-answer {
+  display: none;
+  padding: 10px 14px;
+  background: var(--ob-bg);
+  border-top: 1px solid var(--ob-border);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ob-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 320px;
+  font-family: var(--ob-font);
+}
+.orbit-answer.open { display: block; }

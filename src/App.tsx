@@ -90,6 +90,13 @@ function App() {
     [themeVariant, mode]
   );
 
+  // Broadcast theme to Orbit extension whenever it changes
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent('aiopad:themeChanged', {
+      detail: { variant: themeVariant, mode, fontFamily }
+    }));
+  }, [themeVariant, mode, fontFamily]);
+
   const toggleTheme = () => {
     const newMode = mode === 'light' ? 'dark' : 'light';
     setMode(newMode);

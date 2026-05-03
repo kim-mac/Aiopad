@@ -12,16 +12,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     askOrbit(msg.text, msg.question).then(sendResponse).catch(err => sendResponse({ error: err.message }));
     return true;
   }
+  if (msg.type === 'SYNC_THEME') {
+    chrome.storage.local.set({
+      orbitTheme: msg.variant || 'ocean',
+      orbitMode:  msg.mode    || 'dark',
+      orbitFont:  msg.fontFamily || '"JetBrains Mono", monospace',
+    });
+    return false;
+  }
 });
 
-/* ── Send to Aiopad ───────────────────────────────────────────────── */
+/* ── Send to Aiopad via scripting.executeScript ───────────────────── */
 async function sendToAiopad(text) {
   const { aiopadUrl } = await chrome.storage.local.get({ aiopadUrl: 'http://localhost:5000' });
   const cleanUrl = aiopadUrl.replace(/\/$/, '');
-
-  // Find an open Aiopad tab by checking all tabs' URLs
-  const allTabs = await chrome.tabs.query({});
-  const aiopadTab = allTabs.find(t => t.url && t.url.startsWith(cleanUrl));
 
   const noteObj = {
     id: Date.now().toString(),
@@ -34,21 +38,53 @@ async function sendToAiopad(text) {
     tag: 'Orbit',
   };
 
+  // Find an open Aiopad tab
+  const allTabs  = await chrome.tabs.query({});
+  const aiopadTab = allTabs.find(t => t.url && t.url.startsWith(cleanUrl));
+
   if (aiopadTab) {
-    // Inject silently — don't switch to or focus the Aiopad tab
     try {
-      await chrome.tabs.sendMessage(aiopadTab.id, { type: 'INJECT_NOTE', note: noteObj });
+      // executeScript runs directly in the tab — no content-script handshake needed
+      await chrome.scripting.executeScript({
+        target: { tabId: aiopadTab.id },
+        func: injectNote,
+        args: [noteObj],
+      });
       return { ok: true };
     } catch (e) {
-      // Content script not ready — fall through to open in background
+      console.warn('[Orbit] executeScript failed:', e.message);
     }
   }
 
-  // No Aiopad tab found — open one in the background without focusing it
+  // No tab open — write directly to localStorage via a background-opened tab (never focused)
   const newTab = await chrome.tabs.create({ url: cleanUrl, active: false });
   await waitForTab(newTab.id);
-  await chrome.tabs.sendMessage(newTab.id, { type: 'INJECT_NOTE', note: noteObj });
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: newTab.id },
+      func: injectNote,
+      args: [noteObj],
+    });
+  } catch (e) {
+    console.warn('[Orbit] executeScript on new tab failed:', e.message);
+  }
   return { ok: true };
+}
+
+/* Runs INSIDE the Aiopad tab (no closure — must be self-contained) */
+function injectNote(noteObj) {
+  // Write to localStorage so it persists even if React hasn't mounted yet
+  try {
+    const raw      = localStorage.getItem('notepad-notes') || '[]';
+    const existing = JSON.parse(raw);
+    if (!existing.some(n => n.id === noteObj.id)) {
+      existing.unshift(noteObj);
+      localStorage.setItem('notepad-notes', JSON.stringify(existing));
+    }
+  } catch (_) {}
+
+  // Also dispatch the live event so React picks it up immediately
+  window.dispatchEvent(new CustomEvent('orbit:addNote', { detail: noteObj }));
 }
 
 function waitForTab(tabId) {
@@ -56,7 +92,7 @@ function waitForTab(tabId) {
     function listener(id, info) {
       if (id === tabId && info.status === 'complete') {
         chrome.tabs.onUpdated.removeListener(listener);
-        setTimeout(resolve, 1500); // wait for React to mount
+        setTimeout(resolve, 1200);
       }
     }
     chrome.tabs.onUpdated.addListener(listener);
@@ -68,7 +104,7 @@ async function askOrbit(selectedText, question) {
   const { apiKey } = await chrome.storage.local.get({ apiKey: '' });
 
   if (!apiKey) {
-    return { error: 'No API key set — open Orbit Settings (click ⊙ icon) and save your NVIDIA NIM key.' };
+    return { error: 'No API key set — open Orbit Settings (click the ⊙ toolbar icon) and save your NVIDIA NIM key.' };
   }
 
   const prompt = `You are Orbit, a concise AI assistant. The user selected this text on a webpage:\n\n"${selectedText.slice(0, 800)}"\n\nQuestion: ${question}\n\nAnswer concisely in 2-4 sentences.`;
@@ -77,25 +113,22 @@ async function askOrbit(selectedText, question) {
     const res = await fetch(NVIDIA_API_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':  'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: NVIDIA_MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 300,
+        model:       NVIDIA_MODEL,
+        messages:    [{ role: 'user', content: prompt }],
+        max_tokens:  300,
         temperature: 0.5,
-        stream: false,
+        stream:      false,
       }),
     });
 
     const raw = await res.text();
+    if (!res.ok) return { error: `API error ${res.status}: ${raw.slice(0, 200)}` };
 
-    if (!res.ok) {
-      return { error: `API error ${res.status}: ${raw.slice(0, 200)}` };
-    }
-
-    const data = JSON.parse(raw);
+    const data   = JSON.parse(raw);
     const answer = data.choices?.[0]?.message?.content?.trim() || 'No response received.';
     return { answer };
   } catch (err) {
