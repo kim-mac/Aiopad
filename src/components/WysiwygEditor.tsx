@@ -63,7 +63,7 @@ const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'auto',
+        overflowY: 'visible',
         p: 2,
         fontSize: fontSize,
         lineHeight: 1.6,
