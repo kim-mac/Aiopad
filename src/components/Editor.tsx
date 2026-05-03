@@ -1375,10 +1375,12 @@ const Editor: React.FC<EditorProps> = ({
           <Box
             sx={{
               flex: 1,
+              minHeight: 0,
               position: 'relative',
               display: 'flex',
               flexDirection: 'column',
               borderRadius: 2,
+              overflow: 'hidden',
               outline: imageDragOver ? '2px dashed' : 'none',
               outlineColor: 'primary.main',
               transition: 'outline 0.15s',
@@ -1400,6 +1402,7 @@ const Editor: React.FC<EditorProps> = ({
                 onBlur={() => setIsEditingContent(false)}
                 sx={{
                   flex: 1,
+                  minHeight: 0,
                   resize: 'none',
                   border: 'none',
                   outline: 'none',
@@ -1411,6 +1414,7 @@ const Editor: React.FC<EditorProps> = ({
                   backgroundColor: 'background.paper',
                   color: 'text.primary',
                   borderRadius: 2,
+                  overflowY: 'auto',
                   boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
                   transition: 'all 0.2s ease-in-out',
                   '&:focus': {
@@ -1426,6 +1430,7 @@ const Editor: React.FC<EditorProps> = ({
                 onClick={() => setIsEditingContent(true)}
                 sx={{
                   flex: 1,
+                  minHeight: 0,
                   p: 2,
                   fontSize: fontSize,
                   lineHeight: 1.6,
@@ -1434,9 +1439,8 @@ const Editor: React.FC<EditorProps> = ({
                   color: 'text.primary',
                   borderRadius: 2,
                   boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-                  overflow: 'auto',
+                  overflowY: 'auto',
                   cursor: 'text',
-                  minHeight: 200,
                   '& h1,& h2,& h3,& h4,& h5,& h6': {
                     color: 'text.primary',
                     mt: 2,
