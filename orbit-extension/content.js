@@ -17,6 +17,42 @@ const THEME_PALETTE = {
 };
 
 /* ────────────────────────────────────────────────────────────────────
+   CHROME CONTEXT GUARD
+   Any chrome.* call after context invalidation throws. Centralise the
+   check so every API call goes through it.
+   ──────────────────────────────────────────────────────────────────── */
+function chromeOk() {
+  try { return !!(chrome && chrome.runtime && chrome.runtime.id); }
+  catch (_) { return false; }
+}
+
+function safeStorageGet(keys, cb) {
+  if (!chromeOk()) return;
+  try { chrome.storage.local.get(keys, cb); } catch (_) {}
+}
+
+function safeStorageSet(obj) {
+  if (!chromeOk()) return;
+  try { chrome.storage.local.set(obj); } catch (_) {}
+}
+
+function safeSendMessage(msg, cb) {
+  if (!chromeOk()) {
+    if (cb) cb(null);
+    return;
+  }
+  try {
+    chrome.runtime.sendMessage(msg, (resp) => {
+      // chrome.runtime.lastError must be read to suppress console errors
+      void chrome.runtime.lastError;
+      if (cb) cb(resp);
+    });
+  } catch (_) {
+    if (cb) cb(null);
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────
    STATE
    ──────────────────────────────────────────────────────────────────── */
 let circleEl  = null;   // tiny dot following cursor
@@ -66,35 +102,36 @@ function applyTheme(variant, mode, fontFamily) {
   root.style.setProperty('--ob-primary', c.primary);
   root.style.setProperty('--ob-btntxt',  c.btntxt);
   root.style.setProperty('--ob-font',    font);
-  // Also update circle color directly
   if (circleEl) circleEl.style.background = c.primary;
 }
 
-chrome.storage.local.get(
+safeStorageGet(
   { orbitTheme:'ocean', orbitMode:'dark', orbitFont:'"JetBrains Mono", monospace' },
   ({ orbitTheme, orbitMode, orbitFont }) => applyTheme(orbitTheme, orbitMode, orbitFont)
 );
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local') return;
-  if (changes.orbitEnabled) {
-    const enabled = changes.orbitEnabled.newValue;
-    if (!enabled) shutdownOrbit();
-    else if (circleEl) circleEl.style.display = 'block';
-    return;
-  }
-  if (changes.orbitTheme || changes.orbitMode || changes.orbitFont) {
-    chrome.storage.local.get(
-      { orbitTheme:'ocean', orbitMode:'dark', orbitFont:'"JetBrains Mono", monospace' },
-      ({ orbitTheme, orbitMode, orbitFont }) => applyTheme(orbitTheme, orbitMode, orbitFont)
-    );
-  }
-});
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.orbitEnabled) {
+      const enabled = changes.orbitEnabled.newValue;
+      if (!enabled) shutdownOrbit();
+      else if (circleEl) circleEl.style.display = 'block';
+      return;
+    }
+    if (changes.orbitTheme || changes.orbitMode || changes.orbitFont) {
+      safeStorageGet(
+        { orbitTheme:'ocean', orbitMode:'dark', orbitFont:'"JetBrains Mono", monospace' },
+        ({ orbitTheme, orbitMode, orbitFont }) => applyTheme(orbitTheme, orbitMode, orbitFont)
+      );
+    }
+  });
+} catch (_) {}
 
 // Live theme sync when on the Aiopad tab
 window.addEventListener('aiopad:themeChanged', (e) => {
   const { variant, mode, fontFamily } = e.detail || {};
-  chrome.runtime.sendMessage({ type:'SYNC_THEME', variant, mode, fontFamily });
+  safeSendMessage({ type:'SYNC_THEME', variant, mode, fontFamily });
   applyTheme(variant, mode, fontFamily);
 });
 
@@ -103,7 +140,7 @@ window.addEventListener('aiopad:themeChanged', (e) => {
   const variant = localStorage.getItem('notepad-theme-variant');
   const mode    = localStorage.getItem('notepad-color-mode');
   if (variant && mode) {
-    chrome.runtime.sendMessage({ type:'SYNC_THEME', variant, mode, fontFamily:'"JetBrains Mono", monospace' });
+    safeSendMessage({ type:'SYNC_THEME', variant, mode, fontFamily:'"JetBrains Mono", monospace' });
   }
 })();
 
@@ -111,8 +148,7 @@ window.addEventListener('aiopad:themeChanged', (e) => {
    BUILD DOM
    ──────────────────────────────────────────────────────────────────── */
 function init() {
-  // Check enabled flag first
-  chrome.storage.local.get({ orbitEnabled: true }, ({ orbitEnabled }) => {
+  safeStorageGet({ orbitEnabled: true }, ({ orbitEnabled }) => {
     if (!orbitEnabled) return;
     buildDOM();
   });
@@ -173,7 +209,7 @@ function buildDOM() {
   pillEl.querySelector('#ob-handle').addEventListener('mousedown', onDragStart);
 
   /* ── Apply stored theme ── */
-  chrome.storage.local.get(
+  safeStorageGet(
     { orbitTheme:'ocean', orbitMode:'dark', orbitFont:'"JetBrains Mono", monospace' },
     ({ orbitTheme, orbitMode, orbitFont }) => applyTheme(orbitTheme, orbitMode, orbitFont)
   );
@@ -201,9 +237,8 @@ document.addEventListener('mousemove', e => {
    PILL POSITIONING  — anchored below cursor where selection happened
    ──────────────────────────────────────────────────────────────────── */
 function setPillPos(x, y) {
-  const pw = 300; // approx pill width
+  const pw = 300;
   const vw = window.innerWidth;
-  // Keep pill on screen horizontally
   pillX = Math.max(8, Math.min(x, vw - pw - 8));
   pillY = y;
   if (pillEl) { pillEl.style.left = pillX + 'px'; pillEl.style.top = pillY + 'px'; }
@@ -236,11 +271,11 @@ function onDragEnd() {
    VISIBILITY STATES
    ──────────────────────────────────────────────────────────────────── */
 function showPill() {
-  // Position pill below cursor
+  // Guard: DOM not built yet (buildDOM is async behind storage.get)
+  if (!pillEl) return;
   setPillPos(curX + 8, curY + 22);
   pillEl.classList.add('visible');
   pillOpen = true;
-  // Hide circle while pill is open to avoid overlap
   if (circleEl) circleEl.style.display = 'none';
 }
 
@@ -255,7 +290,6 @@ function resetPillUI() {
   if (!pillEl) return;
   const inp = pillEl.querySelector('#ob-input');
   if (inp) { inp.value = ''; inp.blur(); }
-  // Close chat panel and wipe history
   if (askRow) askRow.classList.remove('open');
   const chatWin = pillEl.querySelector('#ob-chat-window');
   if (chatWin) chatWin.innerHTML = '';
@@ -271,7 +305,6 @@ function resetPillUI() {
 
 function minimizeToBubble() {
   hidePill();
-  // Restore circle at current cursor position
   if (circleEl) {
     setCirclePos(curX + 14, curY + 14);
     circleEl.style.display = 'block';
@@ -282,8 +315,7 @@ function minimizeToBubble() {
 function closeOrbit() {
   hidePill();
   if (circleEl) circleEl.style.display = 'none';
-  // Persist disabled so popup can toggle back on
-  chrome.storage.local.set({ orbitEnabled: false });
+  safeStorageSet({ orbitEnabled: false });
 }
 
 function shutdownOrbit() {
@@ -303,7 +335,6 @@ document.addEventListener('selectionchange', () => {
     const text = sel ? sel.toString().trim() : '';
 
     if (!text || text.length < 2) {
-      // Only collapse if pill is open; don't touch closed state
       if (pillOpen) minimizeToBubble();
       return;
     }
@@ -317,20 +348,23 @@ document.addEventListener('selectionchange', () => {
    SEND TO AIOPAD
    ──────────────────────────────────────────────────────────────────── */
 function handleSend() {
-  if (!selText) return;
+  if (!selText || !pillEl) return;
   const sendBtn = pillEl.querySelector('#ob-send');
+  if (!sendBtn) return;
   sendBtn.disabled    = true;
   sendBtn.textContent = '…';
 
-  chrome.runtime.sendMessage({ type:'SEND_TO_AIOPAD', text: selText }, () => {
-    sendBtn.disabled  = false;
-    sendBtn.innerHTML = '&#128206; Send to Aiopad';
-    // Show green tick inside the pill
-    sentEl.classList.add('show');
-    setTimeout(() => {
-      sentEl.classList.remove('show');
-      minimizeToBubble();
-    }, 2000);
+  safeSendMessage({ type:'SEND_TO_AIOPAD', text: selText }, () => {
+    if (!pillEl) return;
+    const btn = pillEl.querySelector('#ob-send');
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#128206; Send to Aiopad'; }
+    if (sentEl) {
+      sentEl.classList.add('show');
+      setTimeout(() => {
+        sentEl.classList.remove('show');
+        minimizeToBubble();
+      }, 2000);
+    }
   });
 }
 
@@ -338,18 +372,20 @@ function handleSend() {
    ASK ORBIT — multi-turn chat
    ──────────────────────────────────────────────────────────────────── */
 function handleAskToggle() {
+  if (!askRow) return;
   const open = askRow.classList.contains('open');
   if (open) {
     askRow.classList.remove('open');
   } else {
     askRow.classList.add('open');
-    setTimeout(() => pillEl.querySelector('#ob-input').focus(), 40);
+    if (pillEl) setTimeout(() => pillEl.querySelector('#ob-input').focus(), 40);
   }
 }
 
-/* Append a bubble to the chat window */
 function appendBubble(role, text) {
+  if (!pillEl) return null;
   const chatWin = pillEl.querySelector('#ob-chat-window');
+  if (!chatWin) return null;
   const bubble  = document.createElement('div');
   bubble.className = role === 'user' ? 'ob-msg ob-msg-user' : 'ob-msg ob-msg-ai';
   bubble.textContent = text;
@@ -358,9 +394,10 @@ function appendBubble(role, text) {
   return bubble;
 }
 
-/* Show / update typing indicator */
 function showTyping() {
+  if (!pillEl) return null;
   const chatWin = pillEl.querySelector('#ob-chat-window');
+  if (!chatWin) return null;
   let el = chatWin.querySelector('.ob-typing');
   if (!el) {
     el = document.createElement('div');
@@ -373,60 +410,64 @@ function showTyping() {
 }
 
 function removeTyping() {
+  if (!pillEl) return;
   const chatWin = pillEl.querySelector('#ob-chat-window');
   const el = chatWin && chatWin.querySelector('.ob-typing');
   if (el) el.remove();
 }
 
 function handleAskSubmit() {
+  if (!pillEl) return;
   const inp      = pillEl.querySelector('#ob-input');
   const question = inp ? inp.value.trim() : '';
   if (!question || !selText) return;
 
   const subBtn = pillEl.querySelector('#ob-submit');
-  subBtn.disabled  = true;
-  inp.value        = '';
+  if (subBtn) subBtn.disabled = true;
+  if (inp) inp.value = '';
 
-  // Show user bubble immediately
   appendBubble('user', question);
-
-  // Add to history
   chatHistory.push({ role: 'user', content: question });
-
-  // Show typing indicator
   showTyping();
 
-  // Blur to release isTyping guard, then refocus after response
-  inp.blur();
+  if (inp) inp.blur();
   isTyping = false;
 
-  // Safety timeout
   clearTimeout(askTimeout);
   askTimeout = setTimeout(() => {
     removeTyping();
     appendBubble('assistant', '⚠ Request timed out. Please try again.');
-    subBtn.disabled = false;
-    inp.focus();
+    if (pillEl) {
+      const btn = pillEl.querySelector('#ob-submit');
+      if (btn) btn.disabled = false;
+      const input = pillEl.querySelector('#ob-input');
+      if (input) input.focus();
+    }
   }, 30000);
 
-  chrome.runtime.sendMessage(
+  safeSendMessage(
     { type: 'ASK_ORBIT', context: selText, messages: chatHistory },
     resp => {
       clearTimeout(askTimeout);
       removeTyping();
-      subBtn.disabled = false;
+      if (!pillEl) return;
+
+      const btn   = pillEl.querySelector('#ob-submit');
+      if (btn) btn.disabled = false;
 
       const answer = (resp && resp.answer)
         ? resp.answer
-        : '⚠ ' + ((resp && resp.error) || 'No response.');
+        : '⚠ ' + ((resp && resp.error) || 'Extension context lost — please reload the page.');
 
       appendBubble('assistant', answer);
-
-      // Append AI reply to history
       chatHistory.push({ role: 'assistant', content: answer });
 
-      // Refocus input for follow-up
-      setTimeout(() => { inp.focus(); }, 50);
+      setTimeout(() => {
+        if (pillEl) {
+          const input = pillEl.querySelector('#ob-input');
+          if (input) input.focus();
+        }
+      }, 50);
     }
   );
 }
@@ -434,12 +475,14 @@ function handleAskSubmit() {
 /* ────────────────────────────────────────────────────────────────────
    INJECT NOTE  (when this page IS the Aiopad tab)
    ──────────────────────────────────────────────────────────────────── */
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type === 'INJECT_NOTE' && msg.note) {
-    window.dispatchEvent(new CustomEvent('orbit:addNote', { detail: msg.note }));
-    sendResponse({ ok: true });
-  }
-});
+try {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.type === 'INJECT_NOTE' && msg.note) {
+      window.dispatchEvent(new CustomEvent('orbit:addNote', { detail: msg.note }));
+      sendResponse({ ok: true });
+    }
+  });
+} catch (_) {}
 
 /* ────────────────────────────────────────────────────────────────────
    BOOT
