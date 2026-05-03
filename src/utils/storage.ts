@@ -23,6 +23,7 @@ interface Note {
   contentType?: 'youtube' | 'pdf' | 'image' | 'url' | 'voice' | 'text';
   thumbnail?: string;
   sourceUrl?: string;
+  embeddedImages?: Array<{ id: string; src: string; x: number; y: number; width: number; height: number }>;
   tasks?: Array<{
     id: string;
     text: string;
