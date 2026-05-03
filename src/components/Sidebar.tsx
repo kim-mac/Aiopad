@@ -481,31 +481,31 @@ const Sidebar: React.FC<SidebarProps> = ({
             </MenuItem>
             <MenuItem onClick={() => { setShowYoutubeInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
-                <YouTubeIcon fontSize="small" color="error" />
+                <YouTubeIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText primary="YouTube → Note" secondary="Paste a YouTube link" />
             </MenuItem>
             <MenuItem onClick={() => { setShowPdfInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
-                <PdfIcon fontSize="small" color="error" />
+                <PdfIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText primary="PDF → Note" secondary="Upload a PDF document" />
             </MenuItem>
             <MenuItem onClick={() => { setShowImageInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
-                <ImageIcon fontSize="small" color="primary" />
+                <ImageIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText primary="Image → Note" secondary="Upload a photo or screenshot" />
             </MenuItem>
             <MenuItem onClick={() => { setShowUrlInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
-                <LinkIcon fontSize="small" color="primary" />
+                <LinkIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText primary="URL → Note" secondary="Paste any webpage link" />
             </MenuItem>
             <MenuItem onClick={() => { setShowVoiceInput(true); handleAddNoteMenuClose(); }}>
               <ListItemIcon>
-                <MicIcon fontSize="small" color="error" />
+                <MicIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText primary="Voice → Note" secondary="Record and transcribe speech" />
             </MenuItem>
