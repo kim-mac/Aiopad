@@ -14,7 +14,7 @@ import {
   ToggleButton,
 } from '@mui/material';
 import { Image as ImageIcon, CloudUpload as UploadIcon, Article as RawIcon, AutoAwesome as AIIcon } from '@mui/icons-material';
-import { analyzeImage, generateNoteMeta } from '../services/nvidia';
+import { analyzeImage, extractTextFromImage, generateNoteMeta } from '../services/nvidia';
 
 interface Note {
   id: string;
@@ -109,9 +109,29 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
       let meta: { title?: string; tag?: string; summary?: string; difficulty?: 'beginner' | 'intermediate' | 'advanced' } = {};
 
       if (mode === 'raw') {
-        setCurrentTask('Saving image note...');
-        noteContent = `![${file.name}](${preview})\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024).toFixed(0)} KB`;
+        // Text extraction only — OCR, no analysis
+        setCurrentTask('Extracting text from image...');
+        const extracted = await extractTextFromImage(preview);
+
+        if (extracted.startsWith('Error:')) {
+          setError(extracted);
+          setIsLoading(false);
+          setCurrentTask('');
+          return;
+        }
+
+        setCurrentTask('Generating note metadata...');
+        meta = await generateNoteMeta(extracted);
+        noteTitle = meta.title || `Text from: ${file.name}`;
+        noteContent = [
+          `![${file.name}](${preview})`,
+          '',
+          '---',
+          '',
+          extracted,
+        ].join('\n');
       } else {
+        // AI Analysis — text extraction + full explanation
         setCurrentTask('Sending image to AI...');
         const analysis = await analyzeImage(preview);
 
@@ -124,7 +144,7 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
 
         setCurrentTask('Generating note metadata...');
         meta = await generateNoteMeta(analysis);
-        noteTitle = meta.title || `Image Note: ${file.name}`;
+        noteTitle = meta.title || `Image Analysis: ${file.name}`;
         noteContent = [
           `![${file.name}](${preview})`,
           '',
@@ -243,7 +263,7 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
             disabled={isLoading}
           >
             <ToggleButton value="raw">
-              <RawIcon sx={{ fontSize: 16, mr: 0.5 }} /> Image Only
+              <RawIcon sx={{ fontSize: 16, mr: 0.5 }} /> Extract Text
             </ToggleButton>
             <ToggleButton value="ai">
               <AIIcon sx={{ fontSize: 16, mr: 0.5 }} /> AI Analysis
@@ -251,7 +271,9 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
           </ToggleButtonGroup>
         </Box>
         <Typography variant="caption" color="text.disabled">
-          {mode === 'raw' ? 'Embeds the image in the note without any AI analysis.' : 'AI will extract text and describe what it sees in the image.'}
+          {mode === 'raw'
+            ? 'OCR only — extracts all visible text from the image, no description or analysis.'
+            : 'Extracts text and provides a full AI explanation, insights, and key takeaways.'}
         </Typography>
 
         {isLoading && (

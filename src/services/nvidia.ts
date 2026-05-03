@@ -115,36 +115,24 @@ export async function chatWithNotes(
   ], { max_tokens: 1024 });
 }
 
-export async function analyzeImage(base64DataUrl: string): Promise<string> {
+async function callVisionModel(base64DataUrl: string, prompt: string, maxTokens = 1024): Promise<string> {
   try {
     const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'meta/llama-3.2-11b-vision-instruct',
         messages: [
           {
             role: 'user',
             content: [
-              {
-                type: 'image_url',
-                image_url: { url: base64DataUrl },
-              },
-              {
-                type: 'text',
-                text: `1. Extract ALL text visible in this image exactly as written.
-2. Describe what this image shows in detail.
-3. If this is a diagram, chart, or screenshot — explain what it represents and what insights it contains.
-4. List key insights or takeaways.
-Structure your response with clear headings.`,
-              },
+              { type: 'image_url', image_url: { url: base64DataUrl } },
+              { type: 'text', text: prompt },
             ],
           },
         ],
-        max_tokens: 1024,
-        temperature: 0.5,
+        max_tokens: maxTokens,
+        temperature: 0.2,
       }),
     });
 
@@ -159,9 +147,39 @@ Structure your response with clear headings.`,
     if (!content) return 'Error: No response from vision model.';
     return content.trim();
   } catch (error) {
-    console.error('analyzeImage error:', error);
+    console.error('Vision model error:', error);
     return `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
+}
+
+/** Extract ONLY the visible text from an image (OCR). No description or analysis. */
+export async function extractTextFromImage(base64DataUrl: string): Promise<string> {
+  return callVisionModel(
+    base64DataUrl,
+    `Extract ALL text visible in this image exactly as written. Preserve the original formatting, line breaks, and structure as closely as possible. Return ONLY the extracted text — no descriptions, labels, commentary, or analysis of any kind.`,
+    1024
+  );
+}
+
+/** Extract text AND provide a full AI explanation / analysis of the image. */
+export async function analyzeImage(base64DataUrl: string): Promise<string> {
+  return callVisionModel(
+    base64DataUrl,
+    `You are analysing an image. Structure your response with these sections:
+
+## Extracted Text
+Extract ALL text visible in this image exactly as written, preserving formatting.
+
+## What This Shows
+Describe what the image depicts in detail.
+
+## Explanation & Insights
+If this is a diagram, chart, equation, screenshot, or document — explain what it represents, what it means, and what insights it contains.
+
+## Key Takeaways
+Bullet-point the most important points a reader should remember.`,
+    1536
+  );
 }
 
 export async function generateFlashcards(
