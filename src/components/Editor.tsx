@@ -1372,15 +1372,12 @@ const Editor: React.FC<EditorProps> = ({
             sx={{
               flex: 1,
               minHeight: 0,
-              position: 'relative',
               display: 'flex',
               flexDirection: 'column',
-              borderRadius: 2,
-              overflowY: 'auto',
-              overflowX: 'hidden',
               outline: imageDragOver ? '2px dashed' : 'none',
               outlineColor: 'primary.main',
               transition: 'outline 0.15s',
+              borderRadius: 2,
             }}
             onDragOver={(e) => { e.preventDefault(); setImageDragOver(true); }}
             onDragLeave={() => setImageDragOver(false)}
@@ -1396,35 +1393,35 @@ const Editor: React.FC<EditorProps> = ({
               fontFamily={fontFamily}
               placeholder="Start writing..."
               autoFocus={false}
-            />
+            >
+              {/* Drop-hint overlay */}
+              {imageDragOver && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    bgcolor: 'primary.main',
+                    opacity: 0.08,
+                    borderRadius: 2,
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 5,
+                  }}
+                >
+                  <Typography variant="h6" color="primary" sx={{ fontWeight: 700, opacity: 0.7 }}>
+                    Drop image here
+                  </Typography>
+                </Box>
+              )}
 
-            {/* Drop-hint overlay */}
-            {imageDragOver && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  bgcolor: 'primary.main',
-                  opacity: 0.08,
-                  borderRadius: 2,
-                  pointerEvents: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 5,
-                }}
-              >
-                <Typography variant="h6" color="primary" sx={{ fontWeight: 700, opacity: 0.7 }}>
-                  Drop image here
-                </Typography>
-              </Box>
-            )}
-
-            {/* Embedded image layer */}
-            <EmbeddedImageLayer
-              images={note.embeddedImages ?? []}
-              onChange={(imgs) => onNoteChange({ embeddedImages: imgs })}
-            />
+              {/* Embedded image layer — inside scroll container so it scrolls with text */}
+              <EmbeddedImageLayer
+                images={note.embeddedImages ?? []}
+                onChange={(imgs) => onNoteChange({ embeddedImages: imgs })}
+              />
+            </WysiwygEditor>
 
             {/* Hidden file input for image upload */}
             <input

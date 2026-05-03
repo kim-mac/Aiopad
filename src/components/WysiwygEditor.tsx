@@ -11,11 +11,13 @@ interface WysiwygEditorProps {
   fontFamily?: string;
   placeholder?: string;
   autoFocus?: boolean;
+  children?: React.ReactNode;
 }
 
 const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
   content,
   onChange,
+  children,
   fontSize = 15,
   fontFamily = 'inherit',
   placeholder = 'Start writing...',
@@ -59,10 +61,12 @@ const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
   return (
     <Box
       sx={{
-        minHeight: '100%',
+        flex: 1,
+        minHeight: 0,
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'visible',
+        overflowY: 'auto',
         p: 2,
         fontSize: fontSize,
         lineHeight: 1.6,
@@ -150,6 +154,7 @@ const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
       onClick={() => editor?.commands.focus()}
     >
       <EditorContent editor={editor} style={{ flex: 1, display: 'flex', flexDirection: 'column' }} />
+      {children}
     </Box>
   );
 };
