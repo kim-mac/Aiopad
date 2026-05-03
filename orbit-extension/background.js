@@ -3,90 +3,77 @@
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const NVIDIA_MODEL   = 'nvidia/llama-3.3-nemotron-super-49b-v1';
 
-/* ── Message router ───────────────────────────────────────────────── */
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'SEND_TO_AIOPAD') {
-    sendToAiopad(msg.text).then(sendResponse);
-    return true; // keep channel open for async
+    sendToAiopad(msg.text).then(sendResponse).catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
   }
   if (msg.type === 'ASK_ORBIT') {
-    askOrbit(msg.text, msg.question).then(sendResponse);
+    askOrbit(msg.text, msg.question).then(sendResponse).catch(err => sendResponse({ error: err.message }));
     return true;
   }
 });
 
-/* ── Send selected text to Aiopad ─────────────────────────────────── */
+/* ── Send to Aiopad ───────────────────────────────────────────────── */
 async function sendToAiopad(text) {
   const { aiopadUrl } = await chrome.storage.local.get({ aiopadUrl: 'http://localhost:5000' });
+  const cleanUrl = aiopadUrl.replace(/\/$/, '');
 
-  // Find an open Aiopad tab
-  const tabs = await chrome.tabs.query({ url: aiopadUrl.replace(/\/$/, '') + '/*' });
+  // Find an open Aiopad tab by checking all tabs' URLs
+  const allTabs = await chrome.tabs.query({});
+  const aiopadTab = allTabs.find(t => t.url && t.url.startsWith(cleanUrl));
 
-  if (tabs.length > 0) {
-    await injectNote(tabs[0].id, text);
-    await chrome.tabs.update(tabs[0].id, { active: true });
-    return { ok: true };
+  const noteObj = {
+    id: Date.now().toString(),
+    title: text.slice(0, 60) + (text.length > 60 ? '…' : ''),
+    content: text,
+    lastModified: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    type: 'note',
+    contentType: 'text',
+    tag: 'Orbit',
+  };
+
+  if (aiopadTab) {
+    // Send to the content script running on the Aiopad tab — it dispatches the custom event
+    try {
+      await chrome.tabs.sendMessage(aiopadTab.id, { type: 'INJECT_NOTE', note: noteObj });
+      await chrome.tabs.update(aiopadTab.id, { active: true });
+      await chrome.windows.update(aiopadTab.windowId, { focused: true });
+      return { ok: true };
+    } catch (e) {
+      // Content script not ready yet — fall through to open new tab
+    }
   }
 
-  // No tab found — open one, then inject after load
-  const tab = await chrome.tabs.create({ url: aiopadUrl });
-  await waitForTabLoad(tab.id);
-  await injectNote(tab.id, text);
+  // No Aiopad tab found — open one and inject after load
+  const newTab = await chrome.tabs.create({ url: cleanUrl });
+  await waitForTab(newTab.id);
+  await chrome.tabs.sendMessage(newTab.id, { type: 'INJECT_NOTE', note: noteObj });
   return { ok: true };
 }
 
-function waitForTabLoad(tabId) {
-  return new Promise((resolve) => {
+function waitForTab(tabId) {
+  return new Promise(resolve => {
     function listener(id, info) {
       if (id === tabId && info.status === 'complete') {
         chrome.tabs.onUpdated.removeListener(listener);
-        // Extra delay for React to mount
-        setTimeout(resolve, 1200);
+        setTimeout(resolve, 1500); // wait for React to mount
       }
     }
     chrome.tabs.onUpdated.addListener(listener);
   });
 }
 
-async function injectNote(tabId, text) {
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    func: (noteText) => {
-      const STORAGE_KEY = 'notepad-notes';
-      try {
-        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        const now = new Date().toISOString();
-        const newNote = {
-          id: Date.now().toString(),
-          title: noteText.slice(0, 60) + (noteText.length > 60 ? '…' : ''),
-          content: noteText,
-          lastModified: now,
-          createdAt: now,
-          type: 'note',
-          contentType: 'text',
-          tag: 'Orbit',
-        };
-        existing.unshift(newNote);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
-
-        // Notify the React app via a custom event (crosses the content-script boundary)
-        window.dispatchEvent(new CustomEvent('orbit:addNote', { detail: newNote }));
-      } catch (err) {
-        console.error('[Orbit] Failed to inject note:', err);
-      }
-    },
-    args: [text],
-  });
-}
-
 /* ── Ask Orbit via NVIDIA NIM ─────────────────────────────────────── */
 async function askOrbit(selectedText, question) {
   const { apiKey } = await chrome.storage.local.get({ apiKey: '' });
+
   if (!apiKey) {
-    return { error: 'No API key set. Open Orbit Settings and paste your NVIDIA NIM API key.' };
+    return { error: 'No API key set — open Orbit Settings (click ⊙ icon) and save your NVIDIA NIM key.' };
   }
 
-  const prompt = `You are Orbit, a concise AI assistant. The user has selected the following text on a webpage:\n\n"${selectedText}"\n\nUser's question: ${question}\n\nAnswer helpfully and concisely (2-4 sentences max).`;
+  const prompt = `You are Orbit, a concise AI assistant. The user selected this text on a webpage:\n\n"${selectedText.slice(0, 800)}"\n\nQuestion: ${question}\n\nAnswer concisely in 2-4 sentences.`;
 
   try {
     const res = await fetch(NVIDIA_API_URL, {
@@ -98,17 +85,19 @@ async function askOrbit(selectedText, question) {
       body: JSON.stringify({
         model: NVIDIA_MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 256,
+        max_tokens: 300,
         temperature: 0.5,
+        stream: false,
       }),
     });
 
+    const raw = await res.text();
+
     if (!res.ok) {
-      const err = await res.text();
-      return { error: `API error ${res.status}: ${err.slice(0, 120)}` };
+      return { error: `API error ${res.status}: ${raw.slice(0, 200)}` };
     }
 
-    const data = await res.json();
+    const data = JSON.parse(raw);
     const answer = data.choices?.[0]?.message?.content?.trim() || 'No response received.';
     return { answer };
   } catch (err) {

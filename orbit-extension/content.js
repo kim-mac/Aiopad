@@ -153,6 +153,14 @@ function handleAskSubmit() {
   });
 }
 
+/* ── Receive INJECT_NOTE from background (when on Aiopad tab) ────── */
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type === 'INJECT_NOTE' && msg.note) {
+    window.dispatchEvent(new CustomEvent('orbit:addNote', { detail: msg.note }));
+    sendResponse({ ok: true });
+  }
+});
+
 /* ── Toast ────────────────────────────────────────────────────────── */
 function showToast(msg) {
   let t = document.getElementById('orbit-toast');
