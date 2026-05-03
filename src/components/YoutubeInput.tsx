@@ -11,8 +11,10 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
-import { VideoLibrary as YouTubeIcon } from '@mui/icons-material';
+import { VideoLibrary as YouTubeIcon, Article as RawIcon, AutoAwesome as AIIcon } from '@mui/icons-material';
 import { fetchYouTubeTranscript } from '../services/youtube';
 import { explainContent, generateNoteMeta } from '../services/nvidia';
 
@@ -49,6 +51,7 @@ const YoutubeInput: React.FC<YoutubeInputProps> = ({ open, onClose, onNoteCreate
   const [success, setSuccess] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState('');
+  const [mode, setMode] = React.useState<'ai' | 'raw'>('ai');
 
   const handleClose = () => {
     if (isLoading) return;
@@ -79,36 +82,44 @@ const YoutubeInput: React.FC<YoutubeInputProps> = ({ open, onClose, onNoteCreate
         return;
       }
 
-      setCurrentTask('AI is analyzing the video...');
-      const explanation = await explainContent(result.transcript, 'youtube');
+      let noteContent: string;
+      let noteTitle = result.title || 'YouTube Note';
+      let meta: { title?: string; tag?: string; summary?: string; difficulty?: 'beginner' | 'intermediate' | 'advanced' } = {};
 
-      if (explanation.startsWith('Error:')) {
-        setError(explanation);
-        setIsLoading(false);
-        setCurrentTask('');
-        return;
+      if (mode === 'raw') {
+        setCurrentTask('Saving transcript...');
+        noteContent = [
+          result.thumbnail ? `![thumbnail](${result.thumbnail})` : '',
+          '',
+          result.transcript,
+        ].filter(Boolean).join('\n');
+      } else {
+        setCurrentTask('AI is analyzing the video...');
+        const explanation = await explainContent(result.transcript, 'youtube');
+
+        if (explanation.startsWith('Error:')) {
+          setError(explanation);
+          setIsLoading(false);
+          setCurrentTask('');
+          return;
+        }
+
+        setCurrentTask('Saving note...');
+        meta = await generateNoteMeta(explanation);
+        noteTitle = meta.title || result.title || 'YouTube Note';
+        noteContent = [
+          result.thumbnail ? `![thumbnail](${result.thumbnail})` : '',
+          '',
+          '---',
+          '',
+          explanation,
+        ].filter(Boolean).join('\n');
       }
-
-      setCurrentTask('Saving note...');
-
-      const content = [
-        `🎬 ${result.title}`,
-        `🔗 ${trimmedUrl}`,
-        result.thumbnail ? `![thumbnail](${result.thumbnail})` : '',
-        '',
-        '---',
-        '',
-        explanation,
-      ]
-        .filter((line) => line !== null)
-        .join('\n');
-
-      const meta = await generateNoteMeta(content);
 
       const newNote: Note = {
         id: Date.now().toString(),
-        title: meta.title || result.title || 'YouTube Note',
-        content,
+        title: noteTitle,
+        content: noteContent,
         lastModified: new Date(),
         createdAt: new Date(),
         isPinned: false,
@@ -149,14 +160,14 @@ const YoutubeInput: React.FC<YoutubeInputProps> = ({ open, onClose, onNoteCreate
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
         <YouTubeIcon color="error" />
-        YouTube → Smart Note
+        YouTube → Note
       </DialogTitle>
 
       {isLoading && <LinearProgress />}
 
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Paste any YouTube URL. The AI will fetch the transcript and turn it into a structured study note.
+          Paste a YouTube URL and choose how to save it.
         </Typography>
 
         <TextField
@@ -169,34 +180,49 @@ const YoutubeInput: React.FC<YoutubeInputProps> = ({ open, onClose, onNoteCreate
           disabled={isLoading}
           variant="outlined"
           size="small"
+          sx={{ mb: 2 }}
         />
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+            Save as:
+          </Typography>
+          <ToggleButtonGroup
+            value={mode}
+            exclusive
+            onChange={(_, v) => v && setMode(v)}
+            size="small"
+            disabled={isLoading}
+          >
+            <ToggleButton value="raw">
+              <RawIcon sx={{ fontSize: 16, mr: 0.5 }} /> Raw Transcript
+            </ToggleButton>
+            <ToggleButton value="ai">
+              <AIIcon sx={{ fontSize: 16, mr: 0.5 }} /> AI Summary
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+        <Typography variant="caption" color="text.disabled">
+          {mode === 'raw' ? 'Saves the transcript exactly as-is, no AI processing.' : 'AI will explain and structure the content into a smart note.'}
+        </Typography>
 
         {isLoading && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
             <CircularProgress size={16} />
-            <Typography variant="body2" color="text.secondary">
-              {currentTask}
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{currentTask}</Typography>
           </Box>
         )}
 
         {error && (
-          <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError('')}>
-            {error}
-          </Alert>
+          <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError('')}>{error}</Alert>
         )}
-
         {success && (
-          <Alert severity="success" sx={{ mt: 2 }}>
-            Note saved! ✓
-          </Alert>
+          <Alert severity="success" sx={{ mt: 2 }}>Note saved! ✓</Alert>
         )}
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={handleClose} disabled={isLoading}>
-          Cancel
-        </Button>
+        <Button onClick={handleClose} disabled={isLoading}>Cancel</Button>
         <Button
           onClick={handleSubmit}
           variant="contained"

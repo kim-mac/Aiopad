@@ -11,8 +11,10 @@ import {
   Alert,
   LinearProgress,
   Paper,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
-import { Mic as MicIcon, MicOff as MicOffIcon, Stop as StopIcon } from '@mui/icons-material';
+import { Mic as MicIcon, Stop as StopIcon, Article as RawIcon, AutoAwesome as AIIcon } from '@mui/icons-material';
 import { explainContent, generateNoteMeta } from '../services/nvidia';
 
 interface Note {
@@ -56,6 +58,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ open, onClose, onNoteCreated })
   const [success, setSuccess] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState('');
+  const [mode, setMode] = React.useState<'ai' | 'raw'>('ai');
   const recognitionRef = React.useRef<SpeechRecognition | null>(null);
   const [supported, setSupported] = React.useState(true);
 
@@ -127,34 +130,42 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ open, onClose, onNoteCreated })
 
     try {
       setIsLoading(true);
-      setCurrentTask('AI is processing your speech...');
-      const explanation = await explainContent(transcript, 'text');
 
-      if (explanation.startsWith('Error:')) {
-        setError(explanation);
-        setIsLoading(false);
-        setCurrentTask('');
-        return;
+      let noteContent: string;
+      let noteTitle = 'Voice Note';
+      let meta: { title?: string; tag?: string; summary?: string; difficulty?: 'beginner' | 'intermediate' | 'advanced' } = {};
+
+      if (mode === 'raw') {
+        setCurrentTask('Saving transcript...');
+        noteContent = transcript.trim();
+      } else {
+        setCurrentTask('AI is processing your speech...');
+        const explanation = await explainContent(transcript, 'text');
+
+        if (explanation.startsWith('Error:')) {
+          setError(explanation);
+          setIsLoading(false);
+          setCurrentTask('');
+          return;
+        }
+
+        setCurrentTask('Generating note metadata...');
+        meta = await generateNoteMeta(explanation);
+        noteTitle = meta.title || 'Voice Note';
+        noteContent = [
+          '**Original Transcript:**',
+          transcript.trim(),
+          '',
+          '---',
+          '',
+          explanation,
+        ].join('\n');
       }
-
-      setCurrentTask('Generating note metadata...');
-      const meta = await generateNoteMeta(explanation);
-
-      const content = [
-        `🎤 Voice Note`,
-        '',
-        '**Original Transcript:**',
-        transcript.trim(),
-        '',
-        '---',
-        '',
-        explanation,
-      ].join('\n');
 
       const newNote: Note = {
         id: Date.now().toString(),
-        title: meta.title || 'Voice Note',
-        content,
+        title: noteTitle,
+        content: noteContent,
         lastModified: new Date(),
         createdAt: new Date(),
         isPinned: false,
@@ -188,8 +199,8 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ open, onClose, onNoteCreated })
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
-        <MicIcon color="error" />
-        Voice → Smart Note
+        <MicIcon />
+        Voice → Note
       </DialogTitle>
 
       {isLoading && <LinearProgress />}
@@ -202,7 +213,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ open, onClose, onNoteCreated })
         ) : (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Click the mic to start recording. Speak clearly. When done, click Stop and then Process.
+              Click the mic to start recording. Speak clearly. When done, click Stop.
             </Typography>
 
             <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
@@ -227,13 +238,36 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ open, onClose, onNoteCreated })
             )}
 
             {transcript && (
-              <Paper variant="outlined" sx={{ p: 2, maxHeight: 160, overflow: 'auto', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2, maxHeight: 160, overflow: 'auto', borderRadius: 2, mb: 2 }}>
                 <Typography variant="body2" color="text.secondary" gutterBottom fontWeight={500}>
                   Transcript:
                 </Typography>
                 <Typography variant="body2">{transcript}</Typography>
               </Paper>
             )}
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                Save as:
+              </Typography>
+              <ToggleButtonGroup
+                value={mode}
+                exclusive
+                onChange={(_, v) => v && setMode(v)}
+                size="small"
+                disabled={isLoading}
+              >
+                <ToggleButton value="raw">
+                  <RawIcon sx={{ fontSize: 16, mr: 0.5 }} /> Raw Transcript
+                </ToggleButton>
+                <ToggleButton value="ai">
+                  <AIIcon sx={{ fontSize: 16, mr: 0.5 }} /> AI Summary
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+            <Typography variant="caption" color="text.disabled">
+              {mode === 'raw' ? 'Saves the transcript exactly as spoken, no AI processing.' : 'AI will structure and enhance your spoken notes.'}
+            </Typography>
 
             {isLoading && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>

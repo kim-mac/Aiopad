@@ -10,8 +10,10 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
-import { Image as ImageIcon, CloudUpload as UploadIcon } from '@mui/icons-material';
+import { Image as ImageIcon, CloudUpload as UploadIcon, Article as RawIcon, AutoAwesome as AIIcon } from '@mui/icons-material';
 import { analyzeImage, generateNoteMeta } from '../services/nvidia';
 
 interface Note {
@@ -60,6 +62,7 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
   const [isLoading, setIsLoading] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState('');
   const [dragOver, setDragOver] = React.useState(false);
+  const [mode, setMode] = React.useState<'ai' | 'raw'>('ai');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleClose = () => {
@@ -100,31 +103,41 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
 
     try {
       setIsLoading(true);
-      setCurrentTask('Sending image to AI...');
-      const analysis = await analyzeImage(preview);
 
-      if (analysis.startsWith('Error:')) {
-        setError(analysis);
-        setIsLoading(false);
-        setCurrentTask('');
-        return;
+      let noteContent: string;
+      let noteTitle = `Image: ${file.name}`;
+      let meta: { title?: string; tag?: string; summary?: string; difficulty?: 'beginner' | 'intermediate' | 'advanced' } = {};
+
+      if (mode === 'raw') {
+        setCurrentTask('Saving image note...');
+        noteContent = `![${file.name}](${preview})\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024).toFixed(0)} KB`;
+      } else {
+        setCurrentTask('Sending image to AI...');
+        const analysis = await analyzeImage(preview);
+
+        if (analysis.startsWith('Error:')) {
+          setError(analysis);
+          setIsLoading(false);
+          setCurrentTask('');
+          return;
+        }
+
+        setCurrentTask('Generating note metadata...');
+        meta = await generateNoteMeta(analysis);
+        noteTitle = meta.title || `Image Note: ${file.name}`;
+        noteContent = [
+          `![${file.name}](${preview})`,
+          '',
+          '---',
+          '',
+          analysis,
+        ].join('\n');
       }
-
-      setCurrentTask('Generating note metadata...');
-      const meta = await generateNoteMeta(analysis);
-
-      const content = [
-        `🖼️ Image: ${file.name}`,
-        '',
-        '---',
-        '',
-        analysis,
-      ].join('\n');
 
       const newNote: Note = {
         id: Date.now().toString(),
-        title: meta.title || `Image Note: ${file.name}`,
-        content,
+        title: noteTitle,
+        content: noteContent,
         lastModified: new Date(),
         createdAt: new Date(),
         isPinned: false,
@@ -161,15 +174,15 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
-        <ImageIcon color="primary" />
-        Image → Smart Note
+        <ImageIcon />
+        Image → Note
       </DialogTitle>
 
       {isLoading && <LinearProgress />}
 
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Upload an image (photo, diagram, screenshot). The AI will extract text and describe what it sees.
+          Upload an image and choose how to save it.
         </Typography>
 
         <Box
@@ -188,6 +201,7 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
             backgroundColor: dragOver ? 'action.hover' : 'transparent',
             transition: 'all 0.2s',
             overflow: 'hidden',
+            mb: 2,
           }}
         >
           <input
@@ -216,6 +230,29 @@ const ImageInput: React.FC<ImageInputProps> = ({ open, onClose, onNoteCreated })
             </>
           )}
         </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+            Save as:
+          </Typography>
+          <ToggleButtonGroup
+            value={mode}
+            exclusive
+            onChange={(_, v) => v && setMode(v)}
+            size="small"
+            disabled={isLoading}
+          >
+            <ToggleButton value="raw">
+              <RawIcon sx={{ fontSize: 16, mr: 0.5 }} /> Image Only
+            </ToggleButton>
+            <ToggleButton value="ai">
+              <AIIcon sx={{ fontSize: 16, mr: 0.5 }} /> AI Analysis
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+        <Typography variant="caption" color="text.disabled">
+          {mode === 'raw' ? 'Embeds the image in the note without any AI analysis.' : 'AI will extract text and describe what it sees in the image.'}
+        </Typography>
 
         {isLoading && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>

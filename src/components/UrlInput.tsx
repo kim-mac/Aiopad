@@ -11,8 +11,10 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
-import { Link as LinkIcon } from '@mui/icons-material';
+import { Link as LinkIcon, Article as RawIcon, AutoAwesome as AIIcon } from '@mui/icons-material';
 import { explainContent, generateNoteMeta } from '../services/nvidia';
 
 interface Note {
@@ -56,6 +58,7 @@ const UrlInput: React.FC<UrlInputProps> = ({ open, onClose, onNoteCreated }) => 
   const [success, setSuccess] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState('');
+  const [mode, setMode] = React.useState<'ai' | 'raw'>('ai');
 
   const handleClose = () => {
     if (isLoading) return;
@@ -81,37 +84,40 @@ const UrlInput: React.FC<UrlInputProps> = ({ open, onClose, onNoteCreated }) => 
       const pageText = await fetchUrlContent(validUrl);
 
       if (!pageText || pageText.length < 100) {
-        setError('Could not extract readable content from this URL. The page may be behind a login or use JavaScript rendering.');
+        setError('Could not extract readable content from this URL.');
         setIsLoading(false);
         setCurrentTask('');
         return;
       }
 
-      setCurrentTask('AI is summarizing the page...');
-      const explanation = await explainContent(pageText, 'url');
+      let noteContent: string;
+      let noteTitle = new URL(validUrl).hostname;
+      let meta: { title?: string; tag?: string; summary?: string; difficulty?: 'beginner' | 'intermediate' | 'advanced' } = {};
 
-      if (explanation.startsWith('Error:')) {
-        setError(explanation);
-        setIsLoading(false);
-        setCurrentTask('');
-        return;
+      if (mode === 'raw') {
+        setCurrentTask('Saving content...');
+        noteContent = pageText.slice(0, 15000);
+      } else {
+        setCurrentTask('AI is summarizing the page...');
+        const explanation = await explainContent(pageText, 'url');
+
+        if (explanation.startsWith('Error:')) {
+          setError(explanation);
+          setIsLoading(false);
+          setCurrentTask('');
+          return;
+        }
+
+        setCurrentTask('Generating note metadata...');
+        meta = await generateNoteMeta(explanation);
+        noteTitle = meta.title || new URL(validUrl).hostname;
+        noteContent = ['---', '', explanation].join('\n');
       }
-
-      setCurrentTask('Generating note metadata...');
-      const meta = await generateNoteMeta(explanation);
-
-      const content = [
-        `🔗 ${validUrl}`,
-        '',
-        '---',
-        '',
-        explanation,
-      ].join('\n');
 
       const newNote: Note = {
         id: Date.now().toString(),
-        title: meta.title || new URL(validUrl).hostname,
-        content,
+        title: noteTitle,
+        content: `**Source:** ${validUrl}\n\n${noteContent}`,
         lastModified: new Date(),
         createdAt: new Date(),
         isPinned: false,
@@ -147,14 +153,14 @@ const UrlInput: React.FC<UrlInputProps> = ({ open, onClose, onNoteCreated }) => 
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
         <LinkIcon color="primary" />
-        URL → Smart Note
+        URL → Note
       </DialogTitle>
 
       {isLoading && <LinearProgress />}
 
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Paste any webpage URL. The AI will fetch and summarize the content into a structured note.
+          Paste any webpage URL and choose how to save it.
         </Typography>
 
         <TextField
@@ -167,7 +173,31 @@ const UrlInput: React.FC<UrlInputProps> = ({ open, onClose, onNoteCreated }) => 
           disabled={isLoading}
           variant="outlined"
           size="small"
+          sx={{ mb: 2 }}
         />
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+            Save as:
+          </Typography>
+          <ToggleButtonGroup
+            value={mode}
+            exclusive
+            onChange={(_, v) => v && setMode(v)}
+            size="small"
+            disabled={isLoading}
+          >
+            <ToggleButton value="raw">
+              <RawIcon sx={{ fontSize: 16, mr: 0.5 }} /> Raw Content
+            </ToggleButton>
+            <ToggleButton value="ai">
+              <AIIcon sx={{ fontSize: 16, mr: 0.5 }} /> AI Summary
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+        <Typography variant="caption" color="text.disabled">
+          {mode === 'raw' ? 'Saves the page text exactly as extracted, no AI processing.' : 'AI will summarize and structure the page into a smart note.'}
+        </Typography>
 
         {isLoading && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>

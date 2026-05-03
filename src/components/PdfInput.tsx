@@ -10,8 +10,10 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
-import { PictureAsPdf as PdfIcon, CloudUpload as UploadIcon } from '@mui/icons-material';
+import { PictureAsPdf as PdfIcon, CloudUpload as UploadIcon, Article as RawIcon, AutoAwesome as AIIcon } from '@mui/icons-material';
 import { explainContent, generateNoteMeta } from '../services/nvidia';
 
 interface Note {
@@ -73,6 +75,7 @@ const PdfInput: React.FC<PdfInputProps> = ({ open, onClose, onNoteCreated }) => 
   const [isLoading, setIsLoading] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState('');
   const [dragOver, setDragOver] = React.useState(false);
+  const [mode, setMode] = React.useState<'ai' | 'raw'>('ai');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleClose = () => {
@@ -120,31 +123,34 @@ const PdfInput: React.FC<PdfInputProps> = ({ open, onClose, onNoteCreated }) => 
         return;
       }
 
-      setCurrentTask('AI is analyzing the document...');
-      const explanation = await explainContent(extractedText.slice(0, 8000), 'pdf');
+      let noteContent: string;
+      let noteTitle = file.name.replace('.pdf', '');
+      let meta: { title?: string; tag?: string; summary?: string; difficulty?: 'beginner' | 'intermediate' | 'advanced' } = {};
 
-      if (explanation.startsWith('Error:')) {
-        setError(explanation);
-        setIsLoading(false);
-        setCurrentTask('');
-        return;
+      if (mode === 'raw') {
+        setCurrentTask('Saving extracted text...');
+        noteContent = extractedText;
+      } else {
+        setCurrentTask('AI is analyzing the document...');
+        const explanation = await explainContent(extractedText.slice(0, 8000), 'pdf');
+
+        if (explanation.startsWith('Error:')) {
+          setError(explanation);
+          setIsLoading(false);
+          setCurrentTask('');
+          return;
+        }
+
+        setCurrentTask('Generating note metadata...');
+        meta = await generateNoteMeta(explanation);
+        noteTitle = meta.title || file.name.replace('.pdf', '');
+        noteContent = ['---', '', explanation].join('\n');
       }
-
-      setCurrentTask('Generating note metadata...');
-      const meta = await generateNoteMeta(explanation);
-
-      const content = [
-        `📄 ${file.name}`,
-        '',
-        '---',
-        '',
-        explanation,
-      ].join('\n');
 
       const newNote: Note = {
         id: Date.now().toString(),
-        title: meta.title || file.name.replace('.pdf', ''),
-        content,
+        title: noteTitle,
+        content: `**Source:** ${file.name}\n\n${noteContent}`,
         lastModified: new Date(),
         createdAt: new Date(),
         isPinned: false,
@@ -179,15 +185,15 @@ const PdfInput: React.FC<PdfInputProps> = ({ open, onClose, onNoteCreated }) => 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
-        <PdfIcon color="error" />
-        PDF → Smart Note
+        <PdfIcon />
+        PDF → Note
       </DialogTitle>
 
       {isLoading && <LinearProgress />}
 
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Upload a PDF document and the AI will extract, explain, and structure it as a study note.
+          Upload a PDF and choose how to save it.
         </Typography>
 
         <Box
@@ -205,6 +211,7 @@ const PdfInput: React.FC<PdfInputProps> = ({ open, onClose, onNoteCreated }) => 
             cursor: isLoading ? 'not-allowed' : 'pointer',
             backgroundColor: dragOver ? 'action.hover' : 'transparent',
             transition: 'all 0.2s',
+            mb: 2,
           }}
         >
           <input
@@ -230,6 +237,29 @@ const PdfInput: React.FC<PdfInputProps> = ({ open, onClose, onNoteCreated }) => 
             </>
           )}
         </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+            Save as:
+          </Typography>
+          <ToggleButtonGroup
+            value={mode}
+            exclusive
+            onChange={(_, v) => v && setMode(v)}
+            size="small"
+            disabled={isLoading}
+          >
+            <ToggleButton value="raw">
+              <RawIcon sx={{ fontSize: 16, mr: 0.5 }} /> Raw Text
+            </ToggleButton>
+            <ToggleButton value="ai">
+              <AIIcon sx={{ fontSize: 16, mr: 0.5 }} /> AI Summary
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+        <Typography variant="caption" color="text.disabled">
+          {mode === 'raw' ? 'Saves the extracted PDF text exactly as-is, no AI processing.' : 'AI will explain and structure the document into a smart note.'}
+        </Typography>
 
         {isLoading && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
