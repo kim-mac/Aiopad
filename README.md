@@ -78,7 +78,7 @@ Create a `.env` with:
 ```bash
 VITE_NVIDIA_API_KEY=your_nvidia_key
 VITE_ELEVENLABS_API_KEY=your_elevenlabs_key
-VITE_ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
+VITE_ELEVENLABS_VOICE_ID=your_voice_id_from_elevenlabs_voices_page
 ```
 
 These are used by both in-app voice responses and extension-driven fallback STT/TTS.

@@ -8,7 +8,7 @@ const statusEl  = document.getElementById('status');
 
 // Load saved values
 chrome.storage.local.get(
-  { orbitEnabled: true, aiopadUrl: 'http://localhost:5000', apiKey: '', elevenApiKey: '', elevenVoiceId: 'JBFqnCBsd6RMkjVDRZzb' },
+  { orbitEnabled: true, aiopadUrl: 'http://localhost:5000', apiKey: '', elevenApiKey: '', elevenVoiceId: '' },
   (data) => {
     toggleEl.checked = data.orbitEnabled;
     urlInput.value   = data.aiopadUrl;
@@ -28,7 +28,7 @@ saveBtn.addEventListener('click', () => {
   const aiopadUrl = urlInput.value.trim().replace(/\/$/, '') || 'http://localhost:5000';
   const apiKey    = keyInput.value.trim();
   const elevenApiKey = elevenKeyInput.value.trim();
-  const elevenVoiceId = elevenVoiceInput.value.trim() || 'JBFqnCBsd6RMkjVDRZzb';
+  const elevenVoiceId = elevenVoiceInput.value.trim();
 
   chrome.storage.local.set({ aiopadUrl, apiKey, elevenApiKey, elevenVoiceId }, () => {
     statusEl.classList.add('show');

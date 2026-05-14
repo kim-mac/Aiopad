@@ -486,7 +486,12 @@ function elevenProxyPlugin(env: Record<string, string>): Plugin {
           return;
         }
 
-        const voiceId = payload.voice_id || env.VITE_ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
+        const voiceId = (payload.voice_id || env.VITE_ELEVENLABS_VOICE_ID || '').trim();
+        if (!voiceId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing voice_id and VITE_ELEVENLABS_VOICE_ID' }));
+          return;
+        }
         const rawModel = (payload.model_id || 'eleven_multilingual_v2').trim();
         // eleven_v3 expects different client flows; multilingual v2 is the most reliable default for REST TTS.
         const modelId = rawModel === 'eleven_v3' ? 'eleven_multilingual_v2' : rawModel;

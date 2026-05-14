@@ -186,9 +186,12 @@ async function explainSelectionVoice(text) {
 async function elevenSpeak(text) {
   const { elevenApiKey, elevenVoiceId } = await chrome.storage.local.get({
     elevenApiKey: '',
-    elevenVoiceId: 'JBFqnCBsd6RMkjVDRZzb',
+    elevenVoiceId: '',
   });
   if (!elevenApiKey) return { error: 'Missing ElevenLabs API key in Orbit settings.' };
+  if (!String(elevenVoiceId || '').trim()) {
+    return { error: 'Set ElevenLabs voice ID in Orbit extension popup settings.' };
+  }
 
   const response = await fetch(`${ELEVEN_TTS_URL}/${encodeURIComponent(elevenVoiceId)}`, {
     method: 'POST',
