@@ -34,9 +34,12 @@ interface Message {
 interface ChatPanelProps {
   notes: Note[];
   onClose: () => void;
+  /** When opened from voice with a question, sent once per `autoSubmitKey` bump */
+  seedQuestion?: string;
+  autoSubmitKey?: number;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ notes, onClose }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ notes, onClose, seedQuestion, autoSubmitKey = 0 }) => {
   const [messages, setMessages] = React.useState<Message[]>([
     {
       role: 'assistant',
@@ -47,6 +50,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ notes, onClose }) => {
   const [input, setInput] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const isSendingRef = React.useRef(false);
 
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -59,21 +63,40 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ notes, onClose }) => {
       .join('\n\n---\n\n');
   };
 
+  const submitQuestion = React.useCallback(
+    async (question: string) => {
+      const q = question.trim();
+      if (!q || isSendingRef.current) return;
+      isSendingRef.current = true;
+
+      const userMsg: Message = { role: 'user', text: q, timestamp: new Date() };
+      setMessages((prev) => [...prev, userMsg]);
+      setInput('');
+      setIsLoading(true);
+
+      try {
+        const context = buildContext();
+        const answer = await chatWithNotes(q, context);
+        const botMsg: Message = { role: 'assistant', text: answer, timestamp: new Date() };
+        setMessages((prev) => [...prev, botMsg]);
+      } finally {
+        isSendingRef.current = false;
+        setIsLoading(false);
+      }
+    },
+    [notes]
+  );
+
+  const lastAutoKey = React.useRef(0);
+  React.useEffect(() => {
+    if (!seedQuestion?.trim() || !autoSubmitKey) return;
+    if (lastAutoKey.current === autoSubmitKey) return;
+    lastAutoKey.current = autoSubmitKey;
+    void submitQuestion(seedQuestion);
+  }, [seedQuestion, autoSubmitKey, submitQuestion]);
+
   const handleSend = async () => {
-    const question = input.trim();
-    if (!question || isLoading) return;
-
-    const userMsg: Message = { role: 'user', text: question, timestamp: new Date() };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput('');
-    setIsLoading(true);
-
-    const context = buildContext();
-    const answer = await chatWithNotes(question, context);
-
-    const botMsg: Message = { role: 'assistant', text: answer, timestamp: new Date() };
-    setMessages((prev) => [...prev, botMsg]);
-    setIsLoading(false);
+    await submitQuestion(input);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

@@ -87,6 +87,18 @@ let dragOrigX  = 0, dragOrigY  = 0;
 let didDrag    = false;
 
 let askTimeout = null;
+let wakeRecognition = null;
+let commandRecognition = null;
+let wakeActive = false;
+let commandActive = false;
+let fallbackUsed = false;
+let globalWakeRecognition = null;
+let globalWakeActive = false;
+let isNotepadPage = false;
+/** Blocks pill wake Recognition.onend from re-starting while command capture owns the mic. */
+let suppressWakeRestart = false;
+/** Dedupe repeated Notepad forwards from fragmented STT (same phrase within a few seconds). */
+let orbitNotepadCmdDedupe = { norm: '', t: 0 };
 
 /* ────────────────────────────────────────────────────────────────────
    THEME
@@ -128,15 +140,15 @@ try {
   });
 } catch (_) {}
 
-// Live theme sync when on the Aiopad tab
+// Live theme sync when on the Notepad tab
 window.addEventListener('aiopad:themeChanged', (e) => {
   const { variant, mode, fontFamily } = e.detail || {};
   safeSendMessage({ type:'SYNC_THEME', variant, mode, fontFamily });
   applyTheme(variant, mode, fontFamily);
 });
 
-// One-time sync if this IS the Aiopad tab
-(function syncIfAiopad() {
+// One-time sync if this IS the Notepad tab
+(function syncIfNotepad() {
   const variant = localStorage.getItem('notepad-theme-variant');
   const mode    = localStorage.getItem('notepad-color-mode');
   if (variant && mode) {
@@ -151,6 +163,7 @@ function init() {
   safeStorageGet({ orbitEnabled: true }, ({ orbitEnabled }) => {
     if (!orbitEnabled) return;
     buildDOM();
+    detectNotepadPageAndStartGlobalWake();
   });
 }
 
@@ -169,14 +182,16 @@ function buildDOM() {
   pillEl.innerHTML = `
     <div class="ob-row">
       <div class="ob-handle" id="ob-handle">&#9711;</div>
-      <button class="ob-btn ob-btn-send" id="ob-send">&#128206; Send to Aiopad</button>
+      <button class="ob-btn ob-btn-send" id="ob-send">&#128206; Send to Notepad</button>
       <div class="ob-sep"></div>
       <button class="ob-btn ob-btn-ask"  id="ob-ask">&#10022; Ask Orbit</button>
+      <span class="ob-voice-state" id="ob-voice-state">Idle</span>
+      <button class="ob-icon-btn" id="ob-voice" title="Voice command">&#127908;</button>
       <div class="ob-spacer"></div>
       <button class="ob-icon-btn" id="ob-minimize" title="Minimize to circle">&#8722;</button>
       <button class="ob-icon-btn" id="ob-close"    title="Close Orbit">&#215;</button>
     </div>
-    <div class="ob-sent-feedback" id="ob-sent">&#10003; Sent to Aiopad</div>
+    <div class="ob-sent-feedback" id="ob-sent">&#10003; Sent to Notepad</div>
     <div class="ob-chat-panel" id="ob-chat-panel">
       <div class="ob-chat-window" id="ob-chat-window"></div>
       <div class="ob-chat-input-row">
@@ -193,6 +208,7 @@ function buildDOM() {
   /* ── Button events ── */
   pillEl.querySelector('#ob-send')    .addEventListener('mousedown', e => { e.preventDefault(); handleSend(); });
   pillEl.querySelector('#ob-ask')     .addEventListener('mousedown', e => { e.preventDefault(); handleAskToggle(); });
+  pillEl.querySelector('#ob-voice')   .addEventListener('mousedown', e => { e.preventDefault(); startVoiceCommandCapture(); });
   pillEl.querySelector('#ob-submit')  .addEventListener('mousedown', e => { e.preventDefault(); handleAskSubmit(); });
   pillEl.querySelector('#ob-minimize').addEventListener('mousedown', e => { e.preventDefault(); minimizeToBubble(); });
   pillEl.querySelector('#ob-close')   .addEventListener('mousedown', e => { e.preventDefault(); closeOrbit(); });
@@ -277,6 +293,8 @@ function showPill() {
   pillEl.classList.add('visible');
   pillOpen = true;
   if (circleEl) circleEl.style.display = 'none';
+  stopGlobalWakeListener();
+  startWakeListener();
 }
 
 function hidePill() {
@@ -284,6 +302,9 @@ function hidePill() {
   pillEl.classList.remove('visible');
   pillOpen = false;
   resetPillUI();
+  stopWakeListener();
+  stopCommandCapture();
+  startGlobalWakeListener();
 }
 
 function resetPillUI() {
@@ -296,11 +317,471 @@ function resetPillUI() {
   chatHistory = [];
   if (sentEl) sentEl.classList.remove('show');
   const sendBtn = pillEl.querySelector('#ob-send');
-  if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '&#128206; Send to Aiopad'; }
+  if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '&#128206; Send to Notepad'; }
   const subBtn = pillEl.querySelector('#ob-submit');
   if (subBtn) { subBtn.disabled = false; subBtn.innerHTML = '&#8593;'; }
   clearTimeout(askTimeout);
   isTyping = false;
+  setVoiceState('idle');
+}
+
+function setVoiceState(state) {
+  if (!pillEl) return;
+  const el = pillEl.querySelector('#ob-voice-state');
+  if (!el) return;
+  if (state === 'wake') {
+    el.textContent = 'Wake';
+    el.classList.add('listening');
+  } else if (state === 'command') {
+    el.textContent = 'Command';
+    el.classList.add('listening');
+  } else if (state === 'processing') {
+    el.textContent = 'Thinking';
+    el.classList.remove('listening');
+  } else {
+    el.textContent = 'Idle';
+    el.classList.remove('listening');
+  }
+}
+
+function startWakeListener() {
+  suppressWakeRestart = false;
+  if (wakeActive || !pillOpen) return;
+  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognitionAPI) return;
+  try {
+    wakeRecognition = new SpeechRecognitionAPI();
+    wakeRecognition.continuous = true;
+    wakeRecognition.interimResults = true;
+    wakeRecognition.lang = 'en-US';
+    setVoiceState('wake');
+    wakeRecognition.onresult = (event) => {
+      let heard = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        heard += `${event.results[i][0]?.transcript || ''} `;
+      }
+      const match = heard.match(/hey orbit[\s,.:;-]*(.*)$/i);
+      if (match) {
+        const inlineCommand = (match[1] || '').trim();
+        if (inlineCommand) {
+          appendBubble('assistant', 'Heard wake phrase and command.');
+          stopWakeListener();
+          executeVoiceCommand(inlineCommand);
+          return;
+        }
+        appendBubble('assistant', 'Listening. Say a command.');
+        startVoiceCommandCapture();
+      }
+    };
+    wakeRecognition.onerror = () => {
+      wakeActive = false;
+      wakeRecognition = null;
+      setVoiceState('idle');
+    };
+    wakeRecognition.onend = () => {
+      wakeActive = false;
+      wakeRecognition = null;
+      if (pillOpen && !suppressWakeRestart && !commandActive) {
+        setTimeout(startWakeListener, 280);
+      }
+    };
+    wakeRecognition.start();
+    wakeActive = true;
+  } catch (_) {}
+}
+
+function stopWakeListener() {
+  if (wakeRecognition) {
+    try { wakeRecognition.stop(); } catch (_) {}
+  }
+  wakeRecognition = null;
+  wakeActive = false;
+  if (!commandActive && !suppressWakeRestart) setVoiceState('idle');
+}
+
+function detectNotepadPageAndStartGlobalWake() {
+  safeStorageGet({ aiopadUrl: 'http://localhost:5000' }, ({ aiopadUrl }) => {
+    const cleanUrl = (aiopadUrl || '').replace(/\/$/, '');
+    isNotepadPage = Boolean(cleanUrl && pageMatchesSavedNotepadUrl(window.location.href, cleanUrl));
+    if (isNotepadPage) startGlobalWakeListener();
+  });
+}
+
+/** Treat localhost and 127.0.0.1 as the same so popup URL matches either dev URL. */
+function pageMatchesSavedNotepadUrl(pageHref, savedUrl) {
+  try {
+    const page = new URL(pageHref);
+    const base = new URL(/^https?:\/\//i.test(savedUrl) ? savedUrl : `http://${savedUrl}`);
+    const normHost = (h) => (h === '127.0.0.1' ? 'localhost' : h);
+    const pagePort = page.port || (page.protocol === 'https:' ? '443' : '80');
+    const basePort = base.port || (base.protocol === 'https:' ? '443' : '80');
+    return (
+      page.protocol === base.protocol &&
+      normHost(page.hostname) === normHost(base.hostname) &&
+      pagePort === basePort
+    );
+  } catch (_) {
+    return Boolean(savedUrl && pageHref.startsWith(savedUrl));
+  }
+}
+
+function startGlobalWakeListener() {
+  if (!isNotepadPage || pillOpen || globalWakeActive) return;
+  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognitionAPI) return;
+
+  try {
+    globalWakeRecognition = new SpeechRecognitionAPI();
+    globalWakeRecognition.continuous = true;
+    globalWakeRecognition.interimResults = true;
+    globalWakeRecognition.lang = 'en-US';
+    globalWakeRecognition.onresult = (event) => {
+      let heard = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        heard += `${event.results[i][0]?.transcript || ''} `;
+      }
+      const match = heard.match(/hey orbit[\s,.:;-]*(.*)$/i);
+      if (!match) return;
+
+      const inlineCommand = (match[1] || '').trim();
+      if (!pillOpen) showPill();
+      if (askRow && !askRow.classList.contains('open')) askRow.classList.add('open');
+      if (inlineCommand) {
+        appendBubble('user', inlineCommand);
+        executeVoiceCommand(inlineCommand);
+      } else {
+        appendBubble('assistant', 'Listening for command...');
+        startVoiceCommandCapture();
+      }
+      stopGlobalWakeListener();
+    };
+    globalWakeRecognition.onend = () => {
+      globalWakeActive = false;
+      globalWakeRecognition = null;
+      if (isNotepadPage && !pillOpen) setTimeout(startGlobalWakeListener, 350);
+    };
+    globalWakeRecognition.start();
+    globalWakeActive = true;
+  } catch (_) {}
+}
+
+function stopGlobalWakeListener() {
+  if (globalWakeRecognition) {
+    try { globalWakeRecognition.stop(); } catch (_) {}
+  }
+  globalWakeRecognition = null;
+  globalWakeActive = false;
+}
+
+function stopCommandCapture() {
+  if (commandRecognition) {
+    try { commandRecognition.stop(); } catch (_) {}
+  }
+  commandRecognition = null;
+  commandActive = false;
+  if (!wakeActive && !suppressWakeRestart) setVoiceState('idle');
+}
+
+function startVoiceCommandCapture() {
+  suppressWakeRestart = true;
+  stopWakeListener();
+  stopCommandCapture();
+  fallbackUsed = false;
+  setTimeout(() => beginRealtimeCommandRecognition(), 320);
+}
+
+function beginRealtimeCommandRecognition() {
+  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognitionAPI) {
+    captureBatchAndTranscribe();
+    return;
+  }
+
+  let committed = false;
+  let utterTimer = null;
+  let maxTimer = null;
+  let latestCombined = '';
+  const UTTER_GAP_MS = 900;
+
+  const cleanupTimers = () => {
+    if (utterTimer) {
+      clearTimeout(utterTimer);
+      utterTimer = null;
+    }
+    if (maxTimer) {
+      clearTimeout(maxTimer);
+      maxTimer = null;
+    }
+  };
+
+  const finish = (transcript) => {
+    if (committed) return;
+    committed = true;
+    cleanupTimers();
+    try {
+      if (commandRecognition) commandRecognition.stop();
+    } catch (_) {}
+    commandRecognition = null;
+    commandActive = false;
+    const t = (transcript || '').trim();
+    if (!t) {
+      appendBubble('assistant', 'I did not catch that command.');
+      setVoiceState('idle');
+      startWakeListener();
+      return;
+    }
+    appendBubble('user', t);
+    executeVoiceCommand(t);
+  };
+
+  try {
+    commandRecognition = new SpeechRecognitionAPI();
+    commandRecognition.continuous = true;
+    commandRecognition.interimResults = true;
+    commandRecognition.lang = 'en-US';
+    commandActive = true;
+    setVoiceState('command');
+
+    maxTimer = setTimeout(() => {
+      if (committed) return;
+      const u = latestCombined.trim();
+      if (u) finish(u);
+      else if (!fallbackUsed) {
+        cleanupTimers();
+        try {
+          commandRecognition.stop();
+        } catch (_) {}
+        commandRecognition = null;
+        commandActive = false;
+        cleanupTimers();
+        captureBatchAndTranscribe();
+      } else {
+        appendBubble('assistant', 'Voice command timed out.');
+        setVoiceState('idle');
+        startWakeListener();
+      }
+    }, 14500);
+
+    commandRecognition.onresult = (event) => {
+      let combined = '';
+      for (let i = 0; i < event.results.length; i++) {
+        combined += event.results[i][0]?.transcript || '';
+      }
+      combined = combined.trim();
+      if (!combined) return;
+      latestCombined = combined;
+      if (utterTimer) clearTimeout(utterTimer);
+      utterTimer = setTimeout(() => {
+        utterTimer = null;
+        finish(latestCombined);
+      }, UTTER_GAP_MS);
+    };
+
+    commandRecognition.onerror = (ev) => {
+      if (committed) return;
+      const err = ev && ev.error;
+      if (err === 'aborted') return;
+      cleanupTimers();
+      const u = latestCombined.trim();
+      if (u) {
+        finish(u);
+        return;
+      }
+      appendBubble('assistant', 'Realtime failed, trying fallback...');
+      stopCommandCapture();
+      captureBatchAndTranscribe();
+    };
+
+    commandRecognition.onend = () => {
+      commandRecognition = null;
+      commandActive = false;
+      if (committed) return;
+      const u = latestCombined.trim();
+      if (u) finish(u);
+      else if (!fallbackUsed) {
+        cleanupTimers();
+        captureBatchAndTranscribe();
+      } else {
+        cleanupTimers();
+        setVoiceState('idle');
+        startWakeListener();
+      }
+    };
+
+    commandRecognition.start();
+  } catch (_) {
+    cleanupTimers();
+    captureBatchAndTranscribe();
+  }
+}
+
+async function captureBatchAndTranscribe() {
+  if (fallbackUsed) {
+    appendBubble('assistant', 'Voice failed twice. Click mic and try again.');
+    startWakeListener();
+    return;
+  }
+  fallbackUsed = true;
+  commandActive = true;
+  setVoiceState('command');
+  appendBubble('assistant', 'Recording fallback command...');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    const mimeType = getPreferredRecordingMimeType();
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.start();
+    setTimeout(() => recorder.stop(), 3200);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      const buffer = await blob.arrayBuffer();
+      const base64Audio = arrayBufferToBase64(buffer);
+      safeSendMessage({ type: 'TRANSCRIBE_AUDIO_BATCH', base64Audio }, (resp) => {
+        const transcript = resp?.transcript?.trim();
+        if (!transcript) {
+          appendBubble('assistant', `Fallback failed: ${(resp && resp.error) || 'No transcript returned.'}`);
+          commandActive = false;
+          setVoiceState('idle');
+          startWakeListener();
+          return;
+        }
+        appendBubble('user', transcript);
+        executeVoiceCommand(transcript);
+      });
+    };
+  } catch (_) {
+    appendBubble('assistant', 'Microphone access is required for voice commands.');
+    commandActive = false;
+    setVoiceState('idle');
+    startWakeListener();
+  }
+}
+
+function getPreferredRecordingMimeType() {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+  for (const type of candidates) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) {
+      return type;
+    }
+  }
+  return '';
+}
+
+/** Selection-based send: "send … to Notepad", "send selected …", etc. */
+function wantsSendToNotepadPhrase(cmdLower, hasSelection) {
+  if (!hasSelection) return false;
+  const sendish = /\b(send|push|put|paste|save)\b/.test(cmdLower);
+  if (!sendish) return false;
+  const namesNotepad = cmdLower.includes('notepad') || cmdLower.includes('aiopad');
+  const namesSelection =
+    cmdLower.includes('selection') ||
+    cmdLower.includes('selected') ||
+    cmdLower.includes('highlight') ||
+    /\bthis\b/.test(cmdLower);
+  return namesNotepad || (sendish && namesSelection);
+}
+
+function looksLikeNoteScopedCommand(cmd) {
+  return (
+    /\bnote\b/.test(cmd) ||
+    /\bflashcard/.test(cmd) ||
+    /\bexport\b/.test(cmd) ||
+    /\btask\b/.test(cmd) ||
+    /chat with notes/.test(cmd)
+  );
+}
+
+/** Use Orbit explain (selection) instead of in-app note commands when it clearly targets the highlight. */
+function shouldUseExtensionExplain(cmdLower, hasSelection) {
+  if (!hasSelection) return false;
+  if (looksLikeNoteScopedCommand(cmdLower) && /\bsummarize\b/.test(cmdLower)) return false;
+  if (/\bexplain\b/.test(cmdLower) || /\bwhat (does|do|is)\b/.test(cmdLower)) return true;
+  if (/\bsummarize\b/.test(cmdLower) && !/\bnote\b/.test(cmdLower)) return true;
+  return false;
+}
+
+function runExtensionExplain() {
+  showTyping();
+  safeSendMessage({ type: 'EXPLAIN_SELECTION_VOICE', text: selText }, (resp) => {
+    removeTyping();
+    if (!resp || resp.error) {
+      appendBubble('assistant', `⚠ ${(resp && resp.error) || 'Could not explain selection.'}`);
+    } else {
+      appendBubble('assistant', resp.answer || 'Done.');
+      if (resp.audioBase64) playBase64Audio(resp.audioBase64, resp.mimeType || 'audio/mpeg');
+    }
+    setVoiceState('idle');
+    startWakeListener();
+  });
+}
+
+function executeVoiceCommand(transcript) {
+  const raw = (transcript || '').trim();
+  const cmd = raw.toLowerCase();
+  commandActive = false;
+  setVoiceState('processing');
+
+  const sendWantsPad =
+    /\b(send|push|put|paste|save)\b/.test(cmd) && (cmd.includes('notepad') || cmd.includes('aiopad'));
+  if (sendWantsPad && !selText) {
+    appendBubble('assistant', 'Select some text first, then say send to Notepad.');
+    setVoiceState('idle');
+    startWakeListener();
+    return;
+  }
+
+  if (wantsSendToNotepadPhrase(cmd, Boolean(selText))) {
+    handleSend();
+    setVoiceState('idle');
+    startWakeListener();
+    return;
+  }
+
+  if (isNotepadPage && shouldUseExtensionExplain(cmd, Boolean(selText))) {
+    runExtensionExplain();
+    return;
+  }
+
+  if (isNotepadPage) {
+    const norm = raw.toLowerCase().replace(/\s+/g, ' ').slice(0, 400);
+    const now = Date.now();
+    if (orbitNotepadCmdDedupe.norm === norm && now - orbitNotepadCmdDedupe.t < 3000) {
+      setVoiceState('idle');
+      startWakeListener();
+      return;
+    }
+    orbitNotepadCmdDedupe = { norm, t: now };
+    window.dispatchEvent(new CustomEvent('orbit:notepadVoiceCommand', { detail: { transcript: raw } }));
+    setVoiceState('idle');
+    startWakeListener();
+    return;
+  }
+
+  if (shouldUseExtensionExplain(cmd, Boolean(selText))) {
+    runExtensionExplain();
+    return;
+  }
+
+  appendBubble('assistant', 'Try: "Hey Orbit, explain what this says" or "send this to Notepad".');
+  setVoiceState('idle');
+  startWakeListener();
+}
+
+function playBase64Audio(base64, mimeType) {
+  const audio = new Audio(`data:${mimeType};base64,${base64}`);
+  audio.play().catch(() => {});
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }
 
 function minimizeToBubble() {
@@ -315,12 +796,14 @@ function minimizeToBubble() {
 function closeOrbit() {
   hidePill();
   if (circleEl) circleEl.style.display = 'none';
+  stopGlobalWakeListener();
   safeStorageSet({ orbitEnabled: false });
 }
 
 function shutdownOrbit() {
   hidePill();
   if (circleEl) circleEl.style.display = 'none';
+  stopGlobalWakeListener();
 }
 
 /* ────────────────────────────────────────────────────────────────────
@@ -335,7 +818,7 @@ document.addEventListener('selectionchange', () => {
     const text = sel ? sel.toString().trim() : '';
 
     if (!text || text.length < 2) {
-      if (pillOpen) minimizeToBubble();
+      if (pillOpen && !isNotepadPage) minimizeToBubble();
       return;
     }
 
@@ -345,7 +828,7 @@ document.addEventListener('selectionchange', () => {
 });
 
 /* ────────────────────────────────────────────────────────────────────
-   SEND TO AIOPAD
+   SEND TO NOTEPAD
    ──────────────────────────────────────────────────────────────────── */
 function handleSend() {
   if (!selText || !pillEl) return;
@@ -354,10 +837,10 @@ function handleSend() {
   sendBtn.disabled    = true;
   sendBtn.textContent = '…';
 
-  safeSendMessage({ type:'SEND_TO_AIOPAD', text: selText }, () => {
+  safeSendMessage({ type:'SEND_TO_NOTEPAD', text: selText }, () => {
     if (!pillEl) return;
     const btn = pillEl.querySelector('#ob-send');
-    if (btn) { btn.disabled = false; btn.innerHTML = '&#128206; Send to Aiopad'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#128206; Send to Notepad'; }
     if (sentEl) {
       sentEl.classList.add('show');
       setTimeout(() => {
@@ -473,7 +956,7 @@ function handleAskSubmit() {
 }
 
 /* ────────────────────────────────────────────────────────────────────
-   INJECT NOTE  (when this page IS the Aiopad tab)
+   INJECT NOTE  (when this page IS the Notepad tab)
    ──────────────────────────────────────────────────────────────────── */
 try {
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

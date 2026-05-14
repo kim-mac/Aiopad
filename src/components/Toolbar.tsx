@@ -46,6 +46,8 @@ import {
   Close as CloseIcon,
   DragIndicator,
   CalendarToday,
+  Mic as MicIcon,
+  MicOff as MicOffIcon,
 } from '@mui/icons-material';
 import { ThemeVariant, ColorMode } from '../themes';
 import Keyboard from './Keyboard';
@@ -586,6 +588,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarAnchor, setCalendarAnchor] = useState<null | HTMLElement>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [voiceListening, setVoiceListening] = useState(false);
 
   // Initialize undo stack with current content only once
   useEffect(() => {
@@ -651,6 +654,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
   React.useEffect(() => {
     onFontChange(fontFamily, fontSize);
   }, [fontFamily, fontSize, onFontChange]);
+
+  React.useEffect(() => {
+    const onVoiceStatus = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      setVoiceListening(Boolean(detail?.listening));
+    };
+    window.addEventListener('aiopad:voiceStatus', onVoiceStatus);
+    return () => window.removeEventListener('aiopad:voiceStatus', onVoiceStatus);
+  }, []);
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
@@ -1232,25 +1244,36 @@ const Toolbar: React.FC<ToolbarProps> = ({
             {isSidebarOpen ? <ChevronLeft /> : <MenuIcon />}
           </IconButton>
         </Tooltip>
+        <Tooltip title={voiceListening ? "Stop voice control" : "Start voice control"}>
+          <IconButton
+            onClick={() => window.dispatchEvent(new CustomEvent('aiopad:voiceToggle'))}
+            size="small"
+            color={voiceListening ? 'error' : 'default'}
+          >
+            {voiceListening ? <MicIcon /> : <MicOffIcon />}
+          </IconButton>
+        </Tooltip>
 
         {toolbarGroups.map((group, groupIndex) => (
           <React.Fragment key={group.title}>
             <ButtonGroup size="small" sx={{ height: 32 }}>
               {group.tools.map((tool, toolIndex) => (
                 <Tooltip key={tool.tooltip} title={tool.tooltip}>
-                  <IconButton
-                    onClick={tool.action}
-                    disabled={tool.disabled}
-                    size="small"
-                    sx={{
-                      color: tool.disabled ? 'text.disabled' : 'text.secondary',
-                      '&:hover': { 
-                        color: tool.disabled ? 'text.disabled' : 'text.primary' 
-                      },
-                    }}
-                  >
-                    {tool.icon}
-                  </IconButton>
+                  <span style={{ display: 'inline-flex' }}>
+                    <IconButton
+                      onClick={tool.action}
+                      disabled={tool.disabled}
+                      size="small"
+                      sx={{
+                        color: tool.disabled ? 'text.disabled' : 'text.secondary',
+                        '&:hover': {
+                          color: tool.disabled ? 'text.disabled' : 'text.primary',
+                        },
+                      }}
+                    >
+                      {tool.icon}
+                    </IconButton>
+                  </span>
                 </Tooltip>
               ))}
             </ButtonGroup>

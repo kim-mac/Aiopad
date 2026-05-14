@@ -1,4 +1,4 @@
-import { defineConfig, Plugin } from 'vite';
+import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { execFile } from 'child_process';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
@@ -323,12 +323,12 @@ function ytTranscriptPlugin(): Plugin {
   };
 }
 
-function nvidiaProxyPlugin(): Plugin {
+function nvidiaProxyPlugin(env: Record<string, string>): Plugin {
   // Keys in priority order — skips empty/undefined entries
   const API_KEYS = [
-    process.env.VITE_NVIDIA_API_KEY,
-    process.env.VITE_NVIDIA_API_KEY_2,
-    process.env.VITE_NVIDIA_API_KEY_3,
+    env.VITE_NVIDIA_API_KEY,
+    env.VITE_NVIDIA_API_KEY_2,
+    env.VITE_NVIDIA_API_KEY_3,
   ].filter(Boolean) as string[];
 
   return {
@@ -413,18 +413,161 @@ function nvidiaProxyPlugin(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), pdfExtractPlugin(), fetchUrlPlugin(), ytTranscriptPlugin(), nvidiaProxyPlugin()],
-  server: {
-    port: 5000,
-    host: '0.0.0.0',
-    allowedHosts: true,
-    proxy: {},
-  },
-  resolve: {
-    dedupe: ['react', 'react-dom'],
-  },
-  optimizeDeps: {
-    include: ['react', 'react-dom', 'zustand'],
-  },
+function elevenProxyPlugin(env: Record<string, string>): Plugin {
+  const apiKey = env.VITE_ELEVENLABS_API_KEY || '';
+
+  return {
+    name: 'eleven-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/eleven/speech-to-text', async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        if (!apiKey) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing VITE_ELEVENLABS_API_KEY' }));
+          return;
+        }
+
+        const body = await readBody(req);
+        const contentType = req.headers['content-type'] || 'multipart/form-data';
+
+        const proxyReq = https.request(
+          {
+            hostname: 'api.elevenlabs.io',
+            port: 443,
+            path: '/v1/speech-to-text',
+            method: 'POST',
+            headers: {
+              'xi-api-key': apiKey,
+              'Content-Type': contentType,
+              'Content-Length': body.length,
+            },
+          },
+          (proxyRes) => {
+            const chunks: Buffer[] = [];
+            proxyRes.on('data', (c: Buffer) => chunks.push(c));
+            proxyRes.on('end', () => {
+              res.writeHead(proxyRes.statusCode ?? 500, { 'Content-Type': 'application/json' });
+              res.end(Buffer.concat(chunks).toString('utf8'));
+            });
+          }
+        );
+
+        proxyReq.on('error', (err: Error) => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        });
+
+        proxyReq.write(body);
+        proxyReq.end();
+      });
+
+      server.middlewares.use('/api/eleven/text-to-speech', async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        if (!apiKey) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing VITE_ELEVENLABS_API_KEY' }));
+          return;
+        }
+
+        let payload: { text?: string; voice_id?: string; model_id?: string; speed?: number };
+        try {
+          payload = JSON.parse((await readBody(req)).toString('utf8'));
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+          return;
+        }
+
+        const voiceId = payload.voice_id || env.VITE_ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
+        const rawModel = (payload.model_id || 'eleven_multilingual_v2').trim();
+        // eleven_v3 expects different client flows; multilingual v2 is the most reliable default for REST TTS.
+        const modelId = rawModel === 'eleven_v3' ? 'eleven_multilingual_v2' : rawModel;
+        const ttsPayload = JSON.stringify({
+          text: (payload.text || '').trim(),
+          model_id: modelId,
+        });
+
+        const path = `/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`;
+
+        const proxyReq = https.request(
+          {
+            hostname: 'api.elevenlabs.io',
+            port: 443,
+            path,
+            method: 'POST',
+            headers: {
+              'xi-api-key': apiKey,
+              'Content-Type': 'application/json',
+              Accept: 'audio/mpeg',
+              'Content-Length': Buffer.byteLength(ttsPayload),
+            },
+          },
+          (proxyRes) => {
+            const chunks: Buffer[] = [];
+            proxyRes.on('data', (c: Buffer) => chunks.push(c));
+            proxyRes.on('end', () => {
+              const buf = Buffer.concat(chunks);
+              const code = proxyRes.statusCode ?? 500;
+              if (code >= 400) {
+                res.writeHead(code, { 'Content-Type': 'application/json' });
+                const errText = buf.toString('utf8').slice(0, 4000);
+                res.end(
+                  JSON.stringify({
+                    error: 'ElevenLabs TTS error',
+                    status: code,
+                    detail: errText || 'Empty error body',
+                  })
+                );
+                return;
+              }
+              res.writeHead(200, { 'Content-Type': 'audio/mpeg' });
+              res.end(buf);
+            });
+          }
+        );
+
+        proxyReq.on('error', (err: Error) => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        });
+
+        proxyReq.write(ttsPayload);
+        proxyReq.end();
+      });
+    },
+  };
+}
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
+    plugins: [
+      react(),
+      pdfExtractPlugin(),
+      fetchUrlPlugin(),
+      ytTranscriptPlugin(),
+      nvidiaProxyPlugin(env),
+      elevenProxyPlugin(env),
+    ],
+    server: {
+      port: 5000,
+      host: '0.0.0.0',
+      allowedHosts: true,
+      proxy: {},
+    },
+    resolve: {
+      dedupe: ['react', 'react-dom'],
+    },
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'zustand'],
+    },
+  };
 });

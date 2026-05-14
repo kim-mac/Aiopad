@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Orbit — Aiopad Companion",
+  "name": "Orbit — Notepad Companion",
   "version": "1.0.0",
-  "description": "Select text on any page to instantly send it to Aiopad or ask Orbit AI a question.",
+  "description": "Select text on any page to instantly send it to Notepad or ask Orbit AI a question.",
   "permissions": ["storage", "tabs", "scripting", "activeTab"],
   "host_permissions": [
     "<all_urls>",
-    "https://integrate.api.nvidia.com/*"
+    "https://integrate.api.nvidia.com/*",
+    "https://api.elevenlabs.io/*"
   ],
   "background": {
     "service_worker": "background.js"

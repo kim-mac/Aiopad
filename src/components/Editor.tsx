@@ -54,6 +54,7 @@ import ShareNoteDialog from './ShareNoteDialog';
 import ChatPanel from './ChatPanel';
 import EmbeddedImageLayer, { EmbeddedImage } from './EmbeddedImageLayer';
 import WysiwygEditor from './WysiwygEditor';
+import { exportAsPDF, exportAsTXT, exportAsWord } from '../utils/fileExport';
 
 interface Note {
   id: string;
@@ -156,6 +157,8 @@ const Editor: React.FC<EditorProps> = ({
   const [showFlashcards, setShowFlashcards] = React.useState(false);
   const [showShare, setShowShare] = React.useState(false);
   const [showChat, setShowChat] = React.useState(false);
+  const [chatSeedQuestion, setChatSeedQuestion] = React.useState<string | undefined>();
+  const [chatAutoSubmitKey, setChatAutoSubmitKey] = React.useState(0);
 
   // Focus mode
   const [focusMode, setFocusMode] = React.useState(false);
@@ -839,6 +842,66 @@ const Editor: React.FC<EditorProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [focusMode]);
 
+  React.useEffect(() => {
+    const onVoiceAction = async (event: Event) => {
+      const detail = (event as CustomEvent).detail || {};
+      if (detail.type === 'start_pomodoro') {
+        setPomRunning(true);
+        setPomAlert(null);
+        return;
+      }
+      if (detail.type === 'stop_pomodoro') {
+        setPomRunning(false);
+        return;
+      }
+      if (detail.type === 'close_chat') {
+        setShowChat(false);
+        return;
+      }
+      if (detail.type === 'open_chat') {
+        setShowChat(true);
+        const q = typeof detail.question === 'string' ? detail.question.trim() : '';
+        if (q) {
+          setChatSeedQuestion(q);
+          setChatAutoSubmitKey((k) => k + 1);
+        } else {
+          setChatSeedQuestion(undefined);
+        }
+        return;
+      }
+      if (detail.type === 'delete_last_task') {
+        if (!note || note.type !== 'todo') return;
+        let currentTasks =
+          note.tabs && note.tabs.length > 0 && selectedTabId
+            ? note.tabs.find((tab) => tab.id === selectedTabId)?.tasks || []
+            : note.tasks || [];
+        if (!currentTasks.length) return;
+        const updated = currentTasks.slice(0, -1);
+        if (note.tabs && selectedTabId) {
+          const updatedTabs = note.tabs.map((tab) =>
+            tab.id === selectedTabId ? { ...tab, tasks: updated } : tab
+          );
+          onNoteChange({ tabs: updatedTabs, lastModified: new Date() });
+        } else {
+          onNoteChange({ tasks: updated, lastModified: new Date() });
+        }
+        return;
+      }
+      if (!note) return;
+      if (detail.type === 'generate_flashcards') {
+        setShowFlashcards(true);
+      } else if (detail.type === 'export_note') {
+        const title = note.title || 'Untitled';
+        const content = note.content || '';
+        if (detail.format === 'pdf') exportAsPDF(title, content);
+        if (detail.format === 'txt') exportAsTXT(title, content);
+        if (detail.format === 'docx') await exportAsWord(title, content);
+      }
+    };
+    window.addEventListener('aiopad:voiceAction', onVoiceAction);
+    return () => window.removeEventListener('aiopad:voiceAction', onVoiceAction);
+  }, [note, selectedTabId, onNoteChange]);
+
   if (!note) {
     return (
       <Box
@@ -1413,6 +1476,35 @@ const Editor: React.FC<EditorProps> = ({
             onDragLeave={() => setImageDragOver(false)}
             onDrop={handleImageDrop}
           >
+            {note.contentType === 'voice' && (
+              <Paper
+                elevation={0}
+                sx={{
+                  mb: 1.5,
+                  p: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  flexWrap: 'wrap',
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  bgcolor: 'action.hover',
+                }}
+              >
+                <Typography variant="body2" color="text.secondary" sx={{ flex: '1 1 220px' }}>
+                  With toolbar voice on, speech is added here automatically. Say{' '}
+                  <strong>stop dictation</strong> to use commands again. You can still type below.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => window.dispatchEvent(new CustomEvent('aiopad:stopVoiceDictation'))}
+                >
+                  Done dictating
+                </Button>
+              </Paper>
+            )}
             <WysiwygEditor
               content={note.content}
               onChange={(md) => {
@@ -1574,7 +1666,12 @@ const Editor: React.FC<EditorProps> = ({
       {showChat && (
         <ChatPanel
           notes={notes.length > 0 ? notes : [note]}
-          onClose={() => setShowChat(false)}
+          onClose={() => {
+            setShowChat(false);
+            setChatSeedQuestion(undefined);
+          }}
+          seedQuestion={chatSeedQuestion}
+          autoSubmitKey={chatAutoSubmitKey}
         />
       )}
 

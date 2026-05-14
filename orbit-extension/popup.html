@@ -164,7 +164,7 @@
     <div class="logo">&#9711;</div>
     <div class="header-text">
       <h1>Orbit Settings</h1>
-      <p>Aiopad AI Companion</p>
+      <p>Notepad AI Companion</p>
     </div>
   </div>
 
@@ -180,9 +180,9 @@
   </div>
 
   <div class="section">
-    <div class="label">Aiopad URL</div>
+    <div class="label">Notepad URL</div>
     <input type="text" id="aiopad-url" placeholder="http://localhost:5000" />
-    <p class="hint">The URL where your Aiopad app is running.</p>
+    <p class="hint">The URL where your Notepad app is running.</p>
   </div>
 
   <hr />
@@ -194,6 +194,22 @@
       Used for "Ask Orbit". Get yours at
       <a href="https://build.nvidia.com" target="_blank">build.nvidia.com</a>.
     </p>
+  </div>
+
+  <hr />
+
+  <div class="section">
+    <div class="label">ElevenLabs API Key</div>
+    <input type="password" id="eleven-api-key" placeholder="sk_••••••••••••••" />
+    <p class="hint">
+      Required for voice transcription and spoken responses.
+    </p>
+  </div>
+
+  <div class="section">
+    <div class="label">ElevenLabs Voice ID</div>
+    <input type="text" id="eleven-voice-id" placeholder="JBFqnCBsd6RMkjVDRZzb" />
+    <p class="hint">Default works out of the box; replace with any voice-library voice id.</p>
   </div>
 
   <button class="save-btn" id="save-btn">Save Settings</button>

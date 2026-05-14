@@ -140,6 +140,25 @@
   flex-shrink: 0;
 }
 
+.ob-voice-state {
+  font-size: 10px;
+  color: color-mix(in srgb, var(--ob-text) 72%, transparent);
+  background: color-mix(in srgb, var(--ob-text) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ob-text) 20%, transparent);
+  border-radius: 999px;
+  padding: 2px 7px;
+  line-height: 1.2;
+  min-width: 52px;
+  text-align: center;
+  user-select: none;
+}
+
+.ob-voice-state.listening {
+  color: #bbf7d0;
+  border-color: color-mix(in srgb, #22c55e 40%, transparent);
+  background: color-mix(in srgb, #22c55e 24%, transparent);
+}
+
 /* right-side icon buttons */
 .ob-icon-btn {
   width: 22px;
